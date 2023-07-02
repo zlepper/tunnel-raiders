@@ -3810,6 +3810,7 @@ dependencies = [
  "anyhow",
  "bevy",
  "bevy_asset_loader",
+ "bevy_ecs",
  "bevy_editor_pls",
  "bevy_hanabi",
  "bevy_rapier3d",

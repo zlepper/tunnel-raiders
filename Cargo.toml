@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 bevy = "0.10"
+bevy_ecs = "0.10"
 leafwing-input-manager = "0.9"
 bevy_hanabi = { version = "0.6", default-features = false, features = ["3d"] }
 bevy_rapier3d = { version = "0.21", features = ["simd-stable", "parallel", "debug-render-3d"] }
