@@ -5,8 +5,10 @@ use bevy::render::primitives::Aabb;
 #[derive(Component)]
 pub struct Selected;
 
-#[derive(Component)]
-pub struct Selectable;
+#[derive(Component, Default)]
+pub struct Selectable {
+    pub selection_ring_offset: Vec3,
+}
 
 pub enum WantToSelect {
     Additionally(Entity),
@@ -31,8 +33,6 @@ fn select_exclusively(
     mut want_to_select: EventReader<WantToSelect>,
 ) {
     for event in want_to_select.iter() {
-        info!("got select event");
-
         match event {
             WantToSelect::Additionally(entity) => {
                 commands.entity(*entity).insert(Selected);
@@ -70,14 +70,14 @@ fn add_glow_highlight_material(
 }
 
 fn highlight_selected(
-    selected: Query<(Entity, &GlobalTransform), Added<Selected>>,
+    selected: Query<(Entity, &GlobalTransform, &Selectable), Added<Selected>>,
     mut commands: Commands,
     children: Query<&Children>,
     mesh_query: Query<(&Aabb, &GlobalTransform)>,
     glow_material: Res<GlowHighlightMaterial>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    for (entity, main_transform) in selected.iter() {
+    for (entity, main_transform, selectable) in selected.iter() {
         let mut extreme_min = main_transform.translation_vec3a();
         let mut extreme_max = extreme_min.clone();
 
@@ -101,14 +101,15 @@ fn highlight_selected(
                 PbrBundle {
                     mesh: meshes.add(
                         Torus {
-                            radius: limit.half_extents.length(),
-                            ring_radius: 1.0,
+                            radius: limit.half_extents.max_element() * 1.4,
+                            ring_radius: 0.5,
                             subdivisions_segments: Torus::default().subdivisions_segments * 4,
                             subdivisions_sides: Torus::default().subdivisions_sides * 4,
                         }
                         .into(),
                     ),
                     material: glow_material.0.clone(),
+                    transform: Transform::from_translation(selectable.selection_ring_offset),
                     ..default()
                 },
             ));
