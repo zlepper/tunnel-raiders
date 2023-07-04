@@ -1,6 +1,8 @@
 mod camera_control;
 mod prelude;
 mod selection;
+mod tasks;
+mod move_to_position_task;
 
 use std::f32::consts::PI;
 use crate::camera_control::CameraControlPlugin;
@@ -12,6 +14,8 @@ use bevy_editor_pls::prelude::*;
 use bevy_editor_pls::EditorWindowPlacement;
 use bevy_prototype_debug_lines::DebugLinesPlugin;
 use oxidized_navigation::{NavMeshAffector, NavMeshSettings, OxidizedNavigationPlugin};
+use crate::move_to_position_task::{LogMessageTask, MoveToPositionTaskPlugin, SleepTask};
+use crate::tasks::TaskQueuePlugin;
 
 static ENABLE_EDITOR_PLUGIN: bool = false;
 
@@ -67,6 +71,8 @@ fn main() {
         .add_state::<GameState>()
         .add_plugin(CameraControlPlugin)
         .add_plugin(SelectionPlugin)
+        .add_plugin(TaskQueuePlugin)
+        .add_plugin(MoveToPositionTaskPlugin)
         .add_loading_state(
             LoadingState::new(GameState::Loading).continue_to_state(GameState::Playing),
         )
@@ -121,6 +127,14 @@ fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>) {
         }
     }
 
+    let mut raider_task_queue = TaskQueue::new();
+
+    raider_task_queue.add_task(LogMessageTask("Hello".to_string()));
+    raider_task_queue.add_task(SleepTask(2.));
+    raider_task_queue.add_task(LogMessageTask("Finished sleep 2 seconds".to_string()));
+    raider_task_queue.add_task(SleepTask(5.));
+    raider_task_queue.add_task(LogMessageTask("Finished sleep 5 seconds".to_string()));
+
     commands.spawn((
         SceneBundle {
             scene: my_assets.raider.clone(),
@@ -131,7 +145,9 @@ fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>) {
         Name::new(format!("Raider")),
         RigidBody::Dynamic,
         LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z,
+        raider_task_queue,
     ));
+
 
     // light
     commands.spawn(DirectionalLightBundle {

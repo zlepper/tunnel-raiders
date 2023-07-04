@@ -1,4 +1,5 @@
 pub use crate::selection::{Selectable, Selected};
+pub use crate::tasks::{TaskQueuePluginExtensions, TaskQueue};
 pub use anyhow::{anyhow, Result};
 pub use bevy_asset_loader::prelude::*;
 pub use bevy_hanabi::prelude::*;
