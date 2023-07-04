@@ -2,6 +2,7 @@ mod camera_control;
 mod prelude;
 mod selection;
 
+use std::f32::consts::PI;
 use crate::camera_control::CameraControlPlugin;
 use crate::prelude::*;
 use crate::selection::SelectionPlugin;
@@ -9,8 +10,10 @@ use bevy::window::ExitCondition;
 use bevy::DefaultPlugins;
 use bevy_editor_pls::prelude::*;
 use bevy_editor_pls::EditorWindowPlacement;
+use bevy_prototype_debug_lines::DebugLinesPlugin;
+use oxidized_navigation::{NavMeshAffector, NavMeshSettings, OxidizedNavigationPlugin};
 
-static ENABLE_EDITOR_PLUGIN: bool = true;
+static ENABLE_EDITOR_PLUGIN: bool = false;
 
 fn main() {
     let mut app = App::new();
@@ -42,6 +45,25 @@ fn main() {
             mode: DebugRenderMode::default() | DebugRenderMode::CONTACTS,
             ..default()
         })
+        .add_plugin(DebugLinesPlugin::default())
+        .add_plugin(OxidizedNavigationPlugin {
+            settings: NavMeshSettings {
+                cell_width: 0.2,
+                cell_height: 0.1,
+                tile_width: 10,
+                world_half_extents: 300.0,
+                world_bottom_bound: -1.0,
+                max_traversable_slope_radians: 45.0f32.to_radians(),
+                walkable_height: 1,
+                walkable_radius: 3,
+                step_height: 5,
+                min_region_area: 100,
+                merge_region_area: 500,
+                max_edge_length: 80,
+                max_contour_simplification_error: 1.1,
+                max_tile_generation_tasks: None,
+            }
+        } )
         .add_state::<GameState>()
         .add_plugin(CameraControlPlugin)
         .add_plugin(SelectionPlugin)
@@ -68,7 +90,6 @@ struct MyAssets {
 const TILE_SIZE: f32 = 10.0;
 
 fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>) {
-
     for i in -20..=20 {
         spawn_wall(&mut commands, &my_assets, i, -20);
         spawn_wall(&mut commands, &my_assets, i, 20);
@@ -79,6 +100,8 @@ fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>) {
         spawn_wall(&mut commands, &my_assets, 20, j);
     }
 
+    spawn_wall(&mut commands, &my_assets, -1, -1);
+
     for i in -20..=20 {
         for j in -20..=20 {
             commands.spawn((
@@ -88,34 +111,40 @@ fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>) {
                     ..default()
                 },
                 Collider::cuboid(TILE_SIZE / 2.0, 1.0, TILE_SIZE / 2.0),
+                RigidBody::Fixed,
                 Selectable {
                     selection_ring_offset: Vec3::Y * 3.0,
                 },
                 Name::new(format!("Floor {} {}", i, j)),
+                NavMeshAffector
             ));
         }
     }
 
     commands.spawn((
-            SceneBundle {
-                scene: my_assets.raider.clone(),
-                transform: Transform::from_xyz(0.0, 20.0, 0.0),
-                ..default()
-            },
-            Collider::cuboid(0.6, 2.2, 0.4),
-            Name::new(format!("Raider")),
-
-        ));
-
-    // light
-    commands.spawn(PointLightBundle {
-        point_light: PointLight {
-            intensity: 1500.0,
-            shadows_enabled: true,
-            range: 100.0,
+        SceneBundle {
+            scene: my_assets.raider.clone(),
+            transform: Transform::from_xyz(0.0, 10.0, 0.0),
             ..default()
         },
-        transform: Transform::from_xyz(0.0, 20.0, 0.0),
+        Collider::cuboid(0.6, 2.2, 0.4),
+        Name::new(format!("Raider")),
+        RigidBody::Dynamic,
+        LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z,
+    ));
+
+    // light
+    commands.spawn(DirectionalLightBundle {
+       directional_light: DirectionalLight {
+           shadows_enabled: true,
+           illuminance: 10000.0,
+           ..default()
+       },
+        transform: Transform {
+            translation: Vec3::new(0.0, 2.0, 0.0),
+            rotation: Quat::from_rotation_x(-PI / 4.),
+            ..default()
+        },
         ..default()
     });
 }
@@ -124,12 +153,18 @@ fn spawn_wall(commands: &mut Commands, my_assets: &Res<MyAssets>, i: i32, j: i32
     commands.spawn((
         SceneBundle {
             scene: my_assets.wall.clone(),
-            transform: Transform::from_xyz(i as f32 * TILE_SIZE, TILE_SIZE / 2.0, j as f32 * TILE_SIZE),
+            transform: Transform::from_xyz(
+                i as f32 * TILE_SIZE,
+                TILE_SIZE / 2.0,
+                j as f32 * TILE_SIZE,
+            ),
             ..default()
         },
         Collider::cuboid(TILE_SIZE / 2.0, TILE_SIZE / 2.0, TILE_SIZE / 2.0),
+        RigidBody::Fixed,
         Selectable::default(),
         Name::new(format!("Wall {} {}", i, j)),
+        NavMeshAffector,
     ));
 }
 

@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = "0.10"
+bevy = {version = "0.10", features = ["jpeg", "exr"]}
 bevy_ecs = "0.10"
 leafwing-input-manager = "0.9"
 bevy_hanabi = { version = "0.6", default-features = false, features = ["3d"] }
@@ -17,6 +17,8 @@ schemars = { version = "0.8", features = ["preserve_order", "derive"] }
 anyhow = "1.0"
 bevy_asset_loader = { version = "0.16.0", features = ["3d"] }
 bevy_editor_pls = "0.4.0"
+oxidized_navigation = "0.5"
+bevy_prototype_debug_lines = { version = "0.10", features = ["3d"]}
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

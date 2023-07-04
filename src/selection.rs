@@ -121,7 +121,7 @@ fn unhighlight_deselected(
     mut deselected: RemovedComponents<Selected>,
     mut commands: Commands,
     parent_query: Query<&Children>,
-    glowing_query: Query<(&Parent), With<GlowHighlight>>,
+    glowing_query: Query<&Parent, With<GlowHighlight>>,
 ) {
     for entity in deselected.iter() {
 
