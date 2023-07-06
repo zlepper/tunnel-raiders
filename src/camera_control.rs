@@ -1,10 +1,10 @@
 use crate::prelude::*;
 use crate::GameState;
-use bevy::render::camera::RenderTarget;
-use bevy::window::{PrimaryWindow, WindowRef};
+use bevy::window::{PrimaryWindow};
 use leafwing_input_manager::action_state::ActionState;
 use leafwing_input_manager::user_input::InputKind;
 use leafwing_input_manager::user_input::Modifier;
+use crate::ray_hit_helpers::get_hit;
 use crate::selection::{WantToSelect};
 
 pub struct CameraControlPlugin;
@@ -13,7 +13,7 @@ impl Plugin for CameraControlPlugin {
     fn build(&self, app: &mut App) {
         app.add_system(move_camera.run_if(has_window_focus))
             .add_system(rotate_camera.run_if(has_window_focus))
-            .add_plugin(InputManagerPlugin::<Action>::default())
+            .add_plugin(InputManagerPlugin::<ControlAction>::default())
             .add_system(spawn_camera.in_schedule(OnEnter(GameState::Playing)))
             .add_system(select_things.run_if(has_window_focus));
     }
@@ -37,20 +37,22 @@ fn spawn_camera(mut commands: Commands) {
             transform: Transform::from_xyz(10.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         },
-        InputManagerBundle::<Action> {
+        InputManagerBundle::<ControlAction> {
             action_state: ActionState::default(),
             input_map: InputMap::default()
-                .insert(VirtualDPad::wasd(), Action::Move)
-                .insert(Modifier::Shift, Action::MoveFast)
-                .insert(SingleAxis::mouse_wheel_y(), Action::Zoom)
+                .insert(VirtualDPad::wasd(), ControlAction::Move)
+                .insert(Modifier::Shift, ControlAction::MoveFast)
+                .insert(SingleAxis::mouse_wheel_y(), ControlAction::Zoom)
                 .insert_chord(
                     [
                         InputKind::Mouse(MouseButton::Middle),
                         DualAxis::mouse_motion().into(),
                     ],
-                    Action::Rotate,
+                    ControlAction::Rotate,
                 )
-                .insert(MouseButton::Left, Action::Select)
+                .insert(MouseButton::Left, ControlAction::Select)
+                .insert_modified(Modifier::Shift, MouseButton::Left, ControlAction::SelectAdditional)
+                .insert(MouseButton::Right, ControlAction::Interact)
                 .build(),
         },
         CameraRotationTracker { angle_y: 0.0 },
@@ -59,20 +61,22 @@ fn spawn_camera(mut commands: Commands) {
 }
 
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug)]
-enum Action {
+pub enum ControlAction {
     Move,
     Zoom,
     Rotate,
     MoveFast,
     Select,
+    SelectAdditional,
+    Interact,
 }
 
 const CAMERA_MOVE_RATE: f32 = 20.0;
 
-fn move_camera(time: Res<Time>, mut q: Query<(&mut Transform, &ActionState<Action>)>) {
+fn move_camera(time: Res<Time>, mut q: Query<(&mut Transform, &ActionState<ControlAction>)>) {
     for (mut transform, action_state) in q.iter_mut() {
         let plane_movement = action_state
-            .clamped_axis_pair(Action::Move)
+            .clamped_axis_pair(ControlAction::Move)
             .unwrap_or_default();
 
         let mut forward_direction = transform.forward();
@@ -82,7 +86,7 @@ fn move_camera(time: Res<Time>, mut q: Query<(&mut Transform, &ActionState<Actio
         let change =
             forward_direction * plane_movement.y() + transform.right() * plane_movement.x();
 
-        let move_rate = if action_state.pressed(Action::MoveFast) {
+        let move_rate = if action_state.pressed(ControlAction::MoveFast) {
             CAMERA_MOVE_RATE * 10.0
         } else {
             CAMERA_MOVE_RATE
@@ -90,10 +94,10 @@ fn move_camera(time: Res<Time>, mut q: Query<(&mut Transform, &ActionState<Actio
 
         transform.translation += change * time.delta_seconds() * move_rate;
 
-        let mut zoom = action_state.value(Action::Zoom);
+        let mut zoom = action_state.value(ControlAction::Zoom);
 
         if zoom != 0.0 {
-            if action_state.pressed(Action::MoveFast) {
+            if action_state.pressed(ControlAction::MoveFast) {
                 zoom *= 5.0;
             }
 
@@ -112,15 +116,15 @@ struct CameraRotationTracker {
 fn rotate_camera(
     mut q: Query<(
         &mut Transform,
-        &ActionState<Action>,
+        &ActionState<ControlAction>,
         &mut CameraRotationTracker,
     )>,
 ) {
     for (mut camera_transform, action_state, mut rotation_tracker) in q.iter_mut() {
-        if !action_state.pressed(Action::Rotate) {
+        if !action_state.pressed(ControlAction::Rotate) {
             continue;
         }
-        if let Some(camera_pan_vector) = action_state.axis_pair(Action::Rotate) {
+        if let Some(camera_pan_vector) = action_state.axis_pair(ControlAction::Rotate) {
             if camera_pan_vector.x() != 0.0 {
                 camera_transform.rotate_y((-camera_pan_vector.x() * CAMERA_PAN_RATE).to_radians());
             }
@@ -143,47 +147,28 @@ fn rotate_camera(
 }
 
 #[derive(Component)]
-struct Selector;
+pub struct Selector;
 
 fn select_things(
-    mut q: Query<(&GlobalTransform, &ActionState<Action>, &Camera), With<Selector>>,
+    mut q: Query<(&GlobalTransform, &ActionState<ControlAction>, &Camera), With<Selector>>,
     rapier_context: Res<RapierContext>,
     windows: Query<&Window>,
     selectable: Query<(), With<Selectable>>,
     mut event_writer: EventWriter<WantToSelect>,
 ) {
     for (transform, action_state, camera) in q.iter_mut() {
-        if action_state.just_pressed(Action::Select) {
-            let window = if let RenderTarget::Window(window_ref) = camera.target {
-                if let WindowRef::Entity(id) = window_ref {
-                    windows.get(id).ok()
+        if action_state.just_pressed(ControlAction::Select) || action_state.just_pressed(ControlAction::SelectAdditional)  {
+
+            let hit = get_hit(&transform, &camera, &rapier_context, &windows, |e| selectable.contains(e));
+
+            if let Some((entity, ray_intersection)) = hit {
+                debug!("Hit {:?} at {:?}", entity, ray_intersection);
+
+                if action_state.just_pressed(ControlAction::SelectAdditional) {
+                    event_writer.send(WantToSelect::Additionally(entity));
                 } else {
-                    windows.iter().find(|_| true)
+                    event_writer.send(WantToSelect::Exclusively(entity));
                 }
-            } else {
-                None
-            };
-
-            const MAX_TOI: f32 = 400.0;
-            const SOLID: bool = true;
-
-            let hit = window
-                .and_then(|window| window.cursor_position())
-                .and_then(|cursor_position| camera.viewport_to_world(transform, cursor_position))
-                .and_then(|ray_cast_source| {
-                    rapier_context.cast_ray(
-                        ray_cast_source.origin,
-                        ray_cast_source.direction,
-                        MAX_TOI,
-                        SOLID,
-                        QueryFilter::new().predicate(&|e| selectable.contains(e)),
-                    )
-                });
-
-            if let Some((entity, toi)) = hit {
-                debug!("Hit {:?} at {}", entity, toi);
-
-                event_writer.send(WantToSelect::Exclusively(entity));
             } else {
                 debug!("No hit")
             }

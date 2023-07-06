@@ -1,8 +1,10 @@
 mod camera_control;
 mod prelude;
 mod selection;
+mod nav_mesh_debug;
 mod tasks;
-mod move_to_position_task;
+mod ray_hit_helpers;
+mod walk_raider_to_target;
 
 use std::f32::consts::PI;
 use crate::camera_control::CameraControlPlugin;
@@ -10,12 +12,14 @@ use crate::prelude::*;
 use crate::selection::SelectionPlugin;
 use bevy::window::ExitCondition;
 use bevy::DefaultPlugins;
+use bevy_ecs::query::{ReadOnlyWorldQuery};
 use bevy_editor_pls::prelude::*;
 use bevy_editor_pls::EditorWindowPlacement;
 use bevy_prototype_debug_lines::DebugLinesPlugin;
 use oxidized_navigation::{NavMeshAffector, NavMeshSettings, OxidizedNavigationPlugin};
-use crate::move_to_position_task::{LogMessageTask, MoveToPositionTaskPlugin, SleepTask};
+use crate::nav_mesh_debug::NavMeshDebugPlugin;
 use crate::tasks::TaskQueuePlugin;
+use crate::walk_raider_to_target::{PlayerInteractable, PlayerMovable, RaiderControlPlugin, Standable};
 
 static ENABLE_EDITOR_PLUGIN: bool = false;
 
@@ -52,27 +56,28 @@ fn main() {
         .add_plugin(DebugLinesPlugin::default())
         .add_plugin(OxidizedNavigationPlugin {
             settings: NavMeshSettings {
-                cell_width: 0.2,
+                cell_width: 0.25,
                 cell_height: 0.1,
-                tile_width: 10,
-                world_half_extents: 300.0,
-                world_bottom_bound: -1.0,
-                max_traversable_slope_radians: 45.0f32.to_radians(),
-                walkable_height: 1,
-                walkable_radius: 3,
-                step_height: 5,
+                tile_width: 100,
+                world_half_extents: 250.0,
+                world_bottom_bound: -100.0,
+                max_traversable_slope_radians: (40.0_f32 - 0.1).to_radians(),
+                walkable_height: 20,
+                walkable_radius: 5,
+                step_height: 3,
                 min_region_area: 100,
                 merge_region_area: 500,
-                max_edge_length: 80,
                 max_contour_simplification_error: 1.1,
-                max_tile_generation_tasks: None,
+                max_edge_length: 80,
+                max_tile_generation_tasks: Some(9)
             }
         } )
         .add_state::<GameState>()
         .add_plugin(CameraControlPlugin)
         .add_plugin(SelectionPlugin)
         .add_plugin(TaskQueuePlugin)
-        .add_plugin(MoveToPositionTaskPlugin)
+        .add_plugin(NavMeshDebugPlugin)
+        .add_plugin(RaiderControlPlugin)
         .add_loading_state(
             LoadingState::new(GameState::Loading).continue_to_state(GameState::Playing),
         )
@@ -122,30 +127,27 @@ fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>) {
                     selection_ring_offset: Vec3::Y * 3.0,
                 },
                 Name::new(format!("Floor {} {}", i, j)),
-                NavMeshAffector
+                NavMeshAffector,
+                PlayerInteractable,
+                Standable,
             ));
         }
     }
 
-    let mut raider_task_queue = TaskQueue::new();
-
-    raider_task_queue.add_task(LogMessageTask("Hello".to_string()));
-    raider_task_queue.add_task(SleepTask(2.));
-    raider_task_queue.add_task(LogMessageTask("Finished sleep 2 seconds".to_string()));
-    raider_task_queue.add_task(SleepTask(5.));
-    raider_task_queue.add_task(LogMessageTask("Finished sleep 5 seconds".to_string()));
-
     commands.spawn((
         SceneBundle {
             scene: my_assets.raider.clone(),
-            transform: Transform::from_xyz(0.0, 10.0, 0.0),
+            transform: Transform::from_xyz(0.0, 3.2, 0.0),
             ..default()
         },
-        Collider::cuboid(0.6, 2.2, 0.4),
+        Collider::cuboid(0.6, 3., 0.4),
         Name::new(format!("Raider")),
-        RigidBody::Dynamic,
+        RigidBody::KinematicVelocityBased,
         LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z,
-        raider_task_queue,
+        TaskQueue::new(),
+        KinematicCharacterController::default(),
+        Selectable::default(),
+        PlayerMovable,
     ));
 
 
@@ -171,7 +173,7 @@ fn spawn_wall(commands: &mut Commands, my_assets: &Res<MyAssets>, i: i32, j: i32
             scene: my_assets.wall.clone(),
             transform: Transform::from_xyz(
                 i as f32 * TILE_SIZE,
-                TILE_SIZE / 2.0,
+                TILE_SIZE / 2.0 - 0.5,
                 j as f32 * TILE_SIZE,
             ),
             ..default()
@@ -189,4 +191,8 @@ enum GameState {
     #[default]
     Loading,
     Playing,
+}
+
+pub fn has_any_query_matches<F: ReadOnlyWorldQuery>(q: Query<(), F>) -> bool {
+    !q.is_empty()
 }
