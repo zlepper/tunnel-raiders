@@ -1,15 +1,6 @@
 use crate::camera_control::InteractedWith;
 use crate::prelude::*;
-use crate::tasks::move_to_position_task::MoveToPosition;
-use bevy_ecs::query::ReadOnlyWorldQuery;
-
-pub struct RaiderControlPlugin;
-
-impl Plugin for RaiderControlPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_system(move_selected_raider_to_target);
-    }
-}
+use crate::tasks::MoveToPosition;
 
 #[derive(Component)]
 pub struct PlayerMovable;
@@ -17,7 +8,7 @@ pub struct PlayerMovable;
 #[derive(Component)]
 pub struct Standable;
 
-fn move_selected_raider_to_target(
+pub fn move_selected_raider_to_target(
     mut movable: Query<&mut TaskQueue, (With<PlayerMovable>, With<Selected>)>,
     interactable: Query<(), With<Standable>>,
     mut events: EventReader<InteractedWith>,

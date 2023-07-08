@@ -4,7 +4,7 @@ mod selection;
 mod nav_mesh_debug;
 mod tasks;
 mod ray_hit_helpers;
-mod walk_raider_to_target;
+mod raider_control;
 
 use std::f32::consts::PI;
 use crate::camera_control::CameraControlPlugin;
@@ -12,14 +12,15 @@ use crate::prelude::*;
 use crate::selection::SelectionPlugin;
 use bevy::window::ExitCondition;
 use bevy::DefaultPlugins;
-use bevy_ecs::query::{ReadOnlyWorldQuery};
+use bevy_ecs::query::ReadOnlyWorldQuery;
 use bevy_editor_pls::prelude::*;
 use bevy_editor_pls::EditorWindowPlacement;
 use bevy_prototype_debug_lines::DebugLinesPlugin;
 use oxidized_navigation::{NavMeshAffector, NavMeshSettings, OxidizedNavigationPlugin};
 use crate::nav_mesh_debug::NavMeshDebugPlugin;
-use crate::tasks::TaskQueuePlugin;
-use crate::walk_raider_to_target::{PlayerMovable, RaiderControlPlugin, Standable};
+use crate::tasks::{Minable, TasksPlugin};
+use raider_control::{PlayerMovable, Standable, RaiderControlPlugin};
+use crate::raider_control::Miner;
 
 static ENABLE_EDITOR_PLUGIN: bool = false;
 
@@ -75,7 +76,7 @@ fn main() {
         .add_state::<GameState>()
         .add_plugin(CameraControlPlugin)
         .add_plugin(SelectionPlugin)
-        .add_plugin(TaskQueuePlugin)
+        .add_plugin(TasksPlugin)
         .add_plugin(NavMeshDebugPlugin)
         .add_plugin(RaiderControlPlugin)
         .add_loading_state(
@@ -148,6 +149,7 @@ fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>) {
         KinematicCharacterController::default(),
         Selectable::default(),
         PlayerMovable,
+        Miner,
     ));
 
 
@@ -183,6 +185,11 @@ fn spawn_wall(commands: &mut Commands, my_assets: &Res<MyAssets>, i: i32, j: i32
         Selectable::default(),
         Name::new(format!("Wall {} {}", i, j)),
         NavMeshAffector,
+        PlayerInteractable,
+        Minable {
+            max_health: 5.,
+            remaining_health: 5.,
+        },
     ));
 }
 
