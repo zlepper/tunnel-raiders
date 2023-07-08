@@ -19,7 +19,7 @@ use bevy_prototype_debug_lines::DebugLinesPlugin;
 use oxidized_navigation::{NavMeshAffector, NavMeshSettings, OxidizedNavigationPlugin};
 use crate::nav_mesh_debug::NavMeshDebugPlugin;
 use crate::tasks::TaskQueuePlugin;
-use crate::walk_raider_to_target::{PlayerInteractable, PlayerMovable, RaiderControlPlugin, Standable};
+use crate::walk_raider_to_target::{PlayerMovable, RaiderControlPlugin, Standable};
 
 static ENABLE_EDITOR_PLUGIN: bool = false;
 

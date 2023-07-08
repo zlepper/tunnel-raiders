@@ -1,11 +1,12 @@
 use crate::prelude::*;
+use crate::ray_hit_helpers::get_hit;
+use crate::selection::WantToSelect;
 use crate::GameState;
-use bevy::window::{PrimaryWindow};
+use bevy::window::PrimaryWindow;
 use leafwing_input_manager::action_state::ActionState;
 use leafwing_input_manager::user_input::InputKind;
 use leafwing_input_manager::user_input::Modifier;
-use crate::ray_hit_helpers::get_hit;
-use crate::selection::{WantToSelect};
+use crate::tasks::Task;
 
 pub struct CameraControlPlugin;
 
@@ -15,10 +16,11 @@ impl Plugin for CameraControlPlugin {
             .add_system(rotate_camera.run_if(has_window_focus))
             .add_plugin(InputManagerPlugin::<ControlAction>::default())
             .add_system(spawn_camera.in_schedule(OnEnter(GameState::Playing)))
-            .add_system(select_things.run_if(has_window_focus));
+            .add_system(select_things.run_if(has_window_focus))
+            .add_event::<InteractedWith>()
+            .add_system(interact_with_things.run_if(has_window_focus));
     }
 }
-
 
 pub fn has_window_focus(windows: Query<&Window, With<PrimaryWindow>>) -> bool {
     let window = windows.get_single();
@@ -29,7 +31,6 @@ pub fn has_window_focus(windows: Query<&Window, With<PrimaryWindow>>) -> bool {
         false
     }
 }
-
 
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((
@@ -51,8 +52,17 @@ fn spawn_camera(mut commands: Commands) {
                     ControlAction::Rotate,
                 )
                 .insert(MouseButton::Left, ControlAction::Select)
-                .insert_modified(Modifier::Shift, MouseButton::Left, ControlAction::SelectAdditional)
+                .insert_modified(
+                    Modifier::Shift,
+                    MouseButton::Left,
+                    ControlAction::SelectAdditional,
+                )
                 .insert(MouseButton::Right, ControlAction::Interact)
+                .insert_modified(
+                    Modifier::Shift,
+                    MouseButton::Right,
+                    ControlAction::InteractAdditional,
+                )
                 .build(),
         },
         CameraRotationTracker { angle_y: 0.0 },
@@ -69,6 +79,7 @@ pub enum ControlAction {
     Select,
     SelectAdditional,
     Interact,
+    InteractAdditional,
 }
 
 const CAMERA_MOVE_RATE: f32 = 20.0;
@@ -150,16 +161,19 @@ fn rotate_camera(
 pub struct Selector;
 
 fn select_things(
-    mut q: Query<(&GlobalTransform, &ActionState<ControlAction>, &Camera), With<Selector>>,
+    q: Query<(&GlobalTransform, &ActionState<ControlAction>, &Camera), With<Selector>>,
     rapier_context: Res<RapierContext>,
     windows: Query<&Window>,
     selectable: Query<(), With<Selectable>>,
     mut event_writer: EventWriter<WantToSelect>,
 ) {
-    for (transform, action_state, camera) in q.iter_mut() {
-        if action_state.just_pressed(ControlAction::Select) || action_state.just_pressed(ControlAction::SelectAdditional)  {
-
-            let hit = get_hit(&transform, &camera, &rapier_context, &windows, |e| selectable.contains(e));
+    for (transform, action_state, camera) in q.iter() {
+        if action_state.just_pressed(ControlAction::Select)
+            || action_state.just_pressed(ControlAction::SelectAdditional)
+        {
+            let hit = get_hit(&transform, &camera, &rapier_context, &windows, |e| {
+                selectable.contains(e)
+            });
 
             if let Some((entity, ray_intersection)) = hit {
                 debug!("Hit {:?} at {:?}", entity, ray_intersection);
@@ -171,6 +185,58 @@ fn select_things(
                 }
             } else {
                 debug!("No hit")
+            }
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct PlayerInteractable;
+
+pub struct InteractedWith {
+    pub entity: Entity,
+    pub interaction: RayIntersection,
+    pub append: bool,
+}
+
+impl InteractedWith {
+    fn new(entity: Entity, interaction: RayIntersection, append: bool) -> Self {
+        Self {
+            entity,
+            interaction,
+            append,
+        }
+    }
+
+    pub fn add_interaction_to_queue(&self, queue: &mut TaskQueue, task: impl Component + Task) {
+        if self.append {
+            queue.add_task(task);
+        } else {
+            queue.override_task(task);
+        }
+    }
+}
+
+fn interact_with_things(
+    q: Query<(&GlobalTransform, &ActionState<ControlAction>, &Camera), With<Selector>>,
+    rapier_context: Res<RapierContext>,
+    windows: Query<&Window>,
+    interactable: Query<(), With<PlayerInteractable>>,
+    mut events: EventWriter<InteractedWith>,
+) {
+    for (transform, action_state, camera) in q.iter() {
+        if action_state.just_pressed(ControlAction::Interact) || action_state.just_pressed(ControlAction::InteractAdditional) {
+            let hit = get_hit(&transform, &camera, &rapier_context, &windows, |e| {
+                interactable.contains(e)
+            });
+
+            if let Some((entity, ray_intersection)) = hit {
+                info!("Hit {:?} at {:?}", entity, ray_intersection);
+
+                let append = action_state.just_pressed(ControlAction::InteractAdditional);
+                events.send(InteractedWith::new(entity, ray_intersection, append));
+            } else {
+                info!("No hit")
             }
         }
     }
