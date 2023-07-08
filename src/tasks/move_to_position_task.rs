@@ -93,14 +93,16 @@ fn execute_move_to_position(
             if let Some(ref mut path) = &mut pos.path {
                 if let Some(next) = path.next() {
                     let direction = next - global_position.translation();
-                    let distance = direction.length();
+                    let distance = direction.length_squared();
                     if distance < 1.0 {
                         path.advance();
+                    } else {
+                        let direction = direction.normalize();
+                        transform.look_to(direction * (Vec3::X + Vec3::Z), Vec3::Y);
+                        let speed = 5.0;
+                        let velocity = direction * speed * time.delta_seconds();
+                        controller.translation = Some(velocity);
                     }
-                    let direction = direction.normalize();
-                    let speed = 5.0;
-                    let velocity = direction * speed * time.delta_seconds();
-                    controller.translation = Some(velocity);
                 } else {
 
                     let total_remaining_distance =
@@ -113,7 +115,7 @@ fn execute_move_to_position(
                         pos.path = None;
                     } else {
                         info!("Completed MoveToPosition task for entity {:?}", entity);
-                        transform.look_at(pos.target, Vec3::Y);
+                        // transform.look_at(pos.target, Vec3::Y);
                         commands.entity(entity).remove::<MoveToPosition>();
                     }
                 }
@@ -123,11 +125,13 @@ fn execute_move_to_position(
 }
 
 fn warn_about_invalid_move_to_position_target(
-    query: Query<Entity, (With<MoveToPosition>, Without<KinematicCharacterController>)>,
+    query: Query<(Entity, Option<&Name>), (With<MoveToPosition>, Without<KinematicCharacterController>)>,
     mut commands: Commands,
 ) {
-    for entity in query.iter() {
-        warn!("Entity {:?} has a MoveToPosition task, but no KinematicCharacterController. Removing task.", entity);
+    for (entity, name) in query.iter() {
+
+        let display_name = name.map(|n| n.to_string()).unwrap_or_else(|| format!("{:?}", entity));
+        warn!("Entity {:?} has a MoveToPosition task, but no KinematicCharacterController. Removing task.", display_name);
         commands.entity(entity).remove::<MoveToPosition>();
     }
 }
