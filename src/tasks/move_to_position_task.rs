@@ -1,7 +1,7 @@
-use bevy::math::Vec3Swizzles;
 use crate::has_any_query_matches;
 use crate::prelude::*;
 use crate::tasks::Task;
+use bevy::math::Vec3Swizzles;
 use oxidized_navigation::query::find_path;
 use oxidized_navigation::{NavMesh, NavMeshSettings};
 
@@ -9,11 +9,16 @@ use oxidized_navigation::{NavMesh, NavMeshSettings};
 pub struct MoveToPosition {
     target: Vec3,
     path: Option<PathTracker>,
+    search_radius: Option<f32>,
 }
 
 impl MoveToPosition {
-    pub fn new(target: Vec3) -> Self {
-        Self { target, path: None }
+    pub fn new(target: Vec3, search_radius: Option<f32>) -> Self {
+        Self {
+            target,
+            path: None,
+            search_radius,
+        }
     }
 }
 
@@ -55,7 +60,7 @@ fn execute_move_to_position(
     nav_mesh: Res<NavMesh>,
     time: Res<Time>,
 ) {
-    if let Ok(nav_mesh) = nav_mesh.get().read() {
+    if let Ok(nav_mesh) = nav_mesh.get().try_read() {
         for (entity, mut pos, mut controller, global_position, mut transform) in query.iter_mut() {
             if pos.path.is_none() {
                 let start_pos = global_position.translation();
@@ -64,7 +69,7 @@ fn execute_move_to_position(
                     &*nav_mesh_settings,
                     start_pos,
                     pos.target,
-                    None,
+                    pos.search_radius,
                     None,
                 );
                 match path {
@@ -94,6 +99,7 @@ fn execute_move_to_position(
                 if let Some(next) = path.next() {
                     let direction = next - global_position.translation();
                     let distance = direction.length_squared();
+                    info!("Remaining distance: {}", distance.sqrt());
                     if distance < 1.0 {
                         path.advance();
                     } else {
@@ -104,20 +110,8 @@ fn execute_move_to_position(
                         controller.translation = Some(velocity);
                     }
                 } else {
-
-                    let total_remaining_distance =
-                        (pos.target.xz()  - global_position.translation().xz()).length();
-                    if total_remaining_distance > 1. {
-                        warn!(
-                            "Still some pathing left to go apparently: {}",
-                            total_remaining_distance
-                        );
-                        pos.path = None;
-                    } else {
-                        info!("Completed MoveToPosition task for entity {:?}", entity);
-                        // transform.look_at(pos.target, Vec3::Y);
-                        commands.entity(entity).remove::<MoveToPosition>();
-                    }
+                    info!("Completed MoveToPosition task for entity {:?}", entity);
+                    commands.entity(entity).remove::<MoveToPosition>();
                 }
             }
         }
@@ -125,12 +119,16 @@ fn execute_move_to_position(
 }
 
 fn warn_about_invalid_move_to_position_target(
-    query: Query<(Entity, Option<&Name>), (With<MoveToPosition>, Without<KinematicCharacterController>)>,
+    query: Query<
+        (Entity, Option<&Name>),
+        (With<MoveToPosition>, Without<KinematicCharacterController>),
+    >,
     mut commands: Commands,
 ) {
     for (entity, name) in query.iter() {
-
-        let display_name = name.map(|n| n.to_string()).unwrap_or_else(|| format!("{:?}", entity));
+        let display_name = name
+            .map(|n| n.to_string())
+            .unwrap_or_else(|| format!("{:?}", entity));
         warn!("Entity {:?} has a MoveToPosition task, but no KinematicCharacterController. Removing task.", display_name);
         commands.entity(entity).remove::<MoveToPosition>();
     }
@@ -152,7 +150,6 @@ impl Plugin for MoveToPositionTaskPlugin {
     }
 }
 
-
 #[derive(Component)]
 pub struct PlayerMovable;
 
@@ -169,7 +166,7 @@ fn move_selected_raider_to_target(
             for mut raider in movable.iter_mut() {
                 event.add_interaction_to_queue(
                     &mut raider,
-                    MoveToPosition::new(event.interaction.point),
+                    MoveToPosition::new(event.interaction.point, None),
                 );
             }
         }

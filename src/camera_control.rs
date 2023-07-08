@@ -6,7 +6,7 @@ use bevy::window::PrimaryWindow;
 use leafwing_input_manager::action_state::ActionState;
 use leafwing_input_manager::user_input::InputKind;
 use leafwing_input_manager::user_input::Modifier;
-use crate::tasks::Task;
+use crate::tasks::{Task, TaskQueueable};
 
 pub struct CameraControlPlugin;
 
@@ -26,7 +26,7 @@ pub fn has_window_focus(windows: Query<&Window, With<PrimaryWindow>>) -> bool {
     let window = windows.get_single();
 
     if let Ok(window) = window {
-        window.focused
+        window.focused && window.physical_cursor_position().is_some()
     } else {
         false
     }
@@ -208,7 +208,23 @@ impl InteractedWith {
         }
     }
 
-    pub fn add_interaction_to_queue(&self, queue: &mut TaskQueue, task: impl Component + Task) {
+    pub fn add_interaction_to_queue(&self, mut queue: &mut TaskQueue, task: impl TaskQueueable) {
+        if self.append {
+            task.add_to_task_queue(&mut queue);
+        } else {
+            task.override_task(&mut queue);
+        }
+    }
+}
+
+pub trait InteractedWithMultiHelper<T> {
+
+    fn add_interaction_to_queue(&self, queue: &mut TaskQueue, task: T);
+}
+
+impl<T> InteractedWithMultiHelper<T> for InteractedWith where T: Component + Task {
+
+    fn add_interaction_to_queue(&self, queue: &mut TaskQueue, task: T) {
         if self.append {
             queue.add_task(task);
         } else {

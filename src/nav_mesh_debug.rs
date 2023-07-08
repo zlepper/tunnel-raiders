@@ -10,7 +10,7 @@ impl Plugin for NavMeshDebugPlugin {
         app
             .insert_resource(NavMeshDebugState {
                 time_since_last_draw: 0.,
-                draw_nav_mesh: false,
+                draw_nav_mesh: true,
             })
             .add_system(draw_nav_mesh_system);
     }

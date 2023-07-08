@@ -10,7 +10,7 @@ use mine_wall_task::MineWallTaskPlugin;
 use sleep_task::{execute_sleep_task, SleepTask};
 pub use mine_wall_task::{Minable, MineWallTask, Miner};
 pub use move_to_position_task::{MoveToPosition, Standable, PlayerMovable};
-pub use task_queue::{Task, TaskQueue, TaskQueuePluginExtensions};
+pub use task_queue::{Task, TaskQueue, TaskQueuePluginExtensions, TaskQueueable};
 use task_queue::dequeue_next_task;
 
 pub struct TasksPlugin;

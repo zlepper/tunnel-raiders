@@ -46,11 +46,11 @@ fn main() {
     }
 
     app.add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
-        .add_plugin(RapierDebugRenderPlugin {
-            always_on_top: true,
-            mode: DebugRenderMode::default() | DebugRenderMode::CONTACTS,
-            ..default()
-        })
+        // .add_plugin(RapierDebugRenderPlugin {
+        //     always_on_top: true,
+        //     mode: DebugRenderMode::default() | DebugRenderMode::CONTACTS,
+        //     ..default()
+        // })
         .add_plugin(DebugLinesPlugin::default())
         .add_plugin(OxidizedNavigationPlugin {
             settings: NavMeshSettings {
@@ -157,7 +157,7 @@ fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>) {
            ..default()
        },
         transform: Transform {
-            translation: Vec3::new(0.0, 2.0, 0.0),
+            translation: Vec3::new(0.0, 20.0, 0.0),
             rotation: Quat::from_rotation_x(-PI / 4.),
             ..default()
         },
