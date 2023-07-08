@@ -4,7 +4,6 @@ mod selection;
 mod nav_mesh_debug;
 mod tasks;
 mod ray_hit_helpers;
-mod raider_control;
 
 use std::f32::consts::PI;
 use crate::camera_control::CameraControlPlugin;
@@ -18,9 +17,7 @@ use bevy_editor_pls::EditorWindowPlacement;
 use bevy_prototype_debug_lines::DebugLinesPlugin;
 use oxidized_navigation::{NavMeshAffector, NavMeshSettings, OxidizedNavigationPlugin};
 use crate::nav_mesh_debug::NavMeshDebugPlugin;
-use crate::tasks::{Minable, TasksPlugin};
-use raider_control::{PlayerMovable, Standable, RaiderControlPlugin};
-use crate::raider_control::Miner;
+use crate::tasks::{Minable, Miner, TasksPlugin, PlayerMovable, Standable};
 
 static ENABLE_EDITOR_PLUGIN: bool = false;
 
@@ -78,7 +75,6 @@ fn main() {
         .add_plugin(SelectionPlugin)
         .add_plugin(TasksPlugin)
         .add_plugin(NavMeshDebugPlugin)
-        .add_plugin(RaiderControlPlugin)
         .add_loading_state(
             LoadingState::new(GameState::Loading).continue_to_state(GameState::Playing),
         )

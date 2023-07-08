@@ -5,7 +5,7 @@ pub struct MineWallTaskPlugin;
 
 impl Plugin for MineWallTaskPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(execute_mine_wall);
+        app.add_system(execute_mine_wall).add_system(start_mining_wall);
     }
 }
 
@@ -45,6 +45,27 @@ fn execute_mine_wall(
             if wall.remaining_health <= 0.0 {
                 commands.entity(task.target).despawn_recursive();
                 commands.entity(entity).remove::<MineWallTask>();
+            }
+        }
+    }
+}
+
+
+#[derive(Component)]
+pub struct Miner;
+
+fn start_mining_wall(
+    mut miner: Query<&mut TaskQueue, (With<Miner>, With<Selected>)>,
+    minable: Query<Entity, With<Minable>>,
+    mut events: EventReader<InteractedWith>,
+) {
+    for event in events.iter() {
+        if let Ok(target) = minable.get(event.entity) {
+            for mut raider in miner.iter_mut() {
+                event.add_interaction_to_queue(
+                    &mut raider,
+                    MineWallTask::new(target),
+                );
             }
         }
     }

@@ -6,12 +6,12 @@ pub mod move_to_position_task;
 mod sleep_task;
 mod task_queue;
 
-use crate::tasks::mine_wall_task::MineWallTaskPlugin;
-use crate::tasks::sleep_task::{execute_sleep_task, SleepTask};
-pub use mine_wall_task::{Minable, MineWallTask};
-pub use move_to_position_task::MoveToPosition;
+use mine_wall_task::MineWallTaskPlugin;
+use sleep_task::{execute_sleep_task, SleepTask};
+pub use mine_wall_task::{Minable, MineWallTask, Miner};
+pub use move_to_position_task::{MoveToPosition, Standable, PlayerMovable};
 pub use task_queue::{Task, TaskQueue, TaskQueuePluginExtensions};
-use crate::tasks::task_queue::dequeue_next_task;
+use task_queue::dequeue_next_task;
 
 pub struct TasksPlugin;
 
