@@ -844,15 +844,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_prototype_debug_lines"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79b3d03aef02c038e30415712097916928bc375abeb8a6b332dae85a898c4a54"
-dependencies = [
- "bevy",
-]
-
-[[package]]
 name = "bevy_ptr"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3085,17 +3076,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "oxidized_navigation"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b85d05a186f912d751ef77a25cbef5f53d4a02b1cf9ecac98f86f037056279ea"
-dependencies = [
- "bevy",
- "bevy_rapier3d",
- "smallvec",
-]
-
-[[package]]
 name = "parking"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3935,10 +3915,8 @@ dependencies = [
  "bevy_ecs",
  "bevy_editor_pls",
  "bevy_hanabi",
- "bevy_prototype_debug_lines",
  "bevy_rapier3d",
  "leafwing-input-manager",
- "oxidized_navigation",
  "schemars",
  "serde",
  "serde_json",

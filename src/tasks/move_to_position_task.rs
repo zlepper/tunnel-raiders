@@ -1,9 +1,6 @@
 use crate::has_any_query_matches;
 use crate::prelude::*;
 use crate::tasks::Task;
-use bevy::math::Vec3Swizzles;
-use oxidized_navigation::query::find_path;
-use oxidized_navigation::{NavMesh, NavMeshSettings};
 
 #[derive(Component)]
 pub struct MoveToPosition {
@@ -56,10 +53,9 @@ fn execute_move_to_position(
         &mut Transform,
     )>,
     mut commands: Commands,
-    nav_mesh_settings: Res<NavMeshSettings>,
-    nav_mesh: Res<NavMesh>,
     time: Res<Time>,
 ) {
+    /*
     if let Ok(nav_mesh) = nav_mesh.get().try_read() {
         for (entity, mut pos, mut controller, global_position, mut transform) in query.iter_mut() {
             if pos.path.is_none() {
@@ -115,7 +111,7 @@ fn execute_move_to_position(
                 }
             }
         }
-    }
+    }*/
 }
 
 fn warn_about_invalid_move_to_position_target(
