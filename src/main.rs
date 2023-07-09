@@ -2,11 +2,11 @@ mod camera_control;
 mod debug_text;
 mod game_level;
 mod mesh_generation;
-mod path_finding;
 mod prelude;
 mod ray_hit_helpers;
 mod selection;
 mod tasks;
+mod nav_mesh_debug;
 
 use crate::camera_control::CameraControlPlugin;
 use crate::debug_text::DebugTextPlugin;
@@ -20,6 +20,10 @@ use bevy_ecs::query::ReadOnlyWorldQuery;
 use bevy_editor_pls::prelude::*;
 use bevy_editor_pls::EditorWindowPlacement;
 use std::f32::consts::PI;
+use bevy::prelude::shape::Cube;
+use bevy_prototype_debug_lines::DebugLinesPlugin;
+use oxidized_navigation::{NavMeshAffector, NavMeshSettings, OxidizedNavigationPlugin};
+use crate::nav_mesh_debug::NavMeshDebugPlugin;
 
 static ENABLE_EDITOR_PLUGIN: bool = true;
 
@@ -53,11 +57,31 @@ fn main() {
         //     mode: DebugRenderMode::default() | DebugRenderMode::CONTACTS,
         //     ..default()
         // })
+        .add_plugin(DebugLinesPlugin::default())
+        .add_plugin(OxidizedNavigationPlugin {
+            settings: NavMeshSettings {
+                cell_width: 0.25,
+                cell_height: 0.1,
+                tile_width: 100,
+                world_half_extents: 250.0,
+                world_bottom_bound: -100.0,
+                max_traversable_slope_radians: (1_f32).to_radians(),
+                walkable_height: 20,
+                walkable_radius: 5,
+                step_height: 3,
+                min_region_area: 100,
+                merge_region_area: 500,
+                max_contour_simplification_error: 1.1,
+                max_edge_length: 80,
+                max_tile_generation_tasks: Some(9),
+            }
+        } )
         .add_state::<GameState>()
         .add_plugin(CameraControlPlugin)
         .add_plugin(SelectionPlugin)
         .add_plugin(TasksPlugin)
         .add_plugin(DebugTextPlugin)
+        .add_plugin(NavMeshDebugPlugin)
         .add_loading_state(
             LoadingState::new(GameState::Loading).continue_to_state(GameState::Playing),
         )
@@ -100,8 +124,8 @@ fn spawn_world(
 
     for x in -1..=11 {
         for z in -1..=11 {
+            let pos = level.get_position_at(GridPosition::new(x, z));// - Vec3::new(50., 0., 50.);
             if let Some(wall_mesh) = level.create_wall_mesh(x, z) {
-                let pos = level.get_position_at(GridPosition::new(x, z));
                 spawn_wall(&mut commands, wall_mesh, &my_assets, pos, &mut mesh_assets);
             }
 
@@ -109,11 +133,12 @@ fn spawn_world(
                 SceneBundle {
                     scene: my_assets.floor.clone(),
                     transform: Transform::from_translation(
-                        level.get_position_at(GridPosition::new(x, z)) - Vec3::Y,
+                        pos - Vec3::Y,
                     ),
                     ..default()
                 },
                 Collider::cuboid(TILE_SIZE / 2.0, 1.0, TILE_SIZE / 2.0),
+                NavMeshAffector,
                 RigidBody::Fixed,
                 Selectable {
                     selection_ring_offset: Vec3::Y * 3.0,
@@ -182,6 +207,7 @@ fn spawn_wall(
         Selectable::default(),
         Name::new(format!("Wall {} {}", position.x, position.z)),
         PlayerInteractable,
+        NavMeshAffector,
         Minable {
             max_health: 5.,
             remaining_health: 5.,

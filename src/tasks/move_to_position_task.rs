@@ -1,6 +1,6 @@
+use oxidized_navigation::{NavMesh, NavMeshSettings, query::find_path};
 use crate::game_level::GameLevel;
 use crate::has_any_query_matches;
-use crate::path_finding::find_path;
 use crate::prelude::*;
 use crate::tasks::Task;
 
@@ -55,51 +55,11 @@ fn execute_move_to_position(
         &mut Transform,
     )>,
     mut commands: Commands,
+    nav_mesh_settings: Res<NavMeshSettings>,
+    nav_mesh: Res<NavMesh>,
     time: Res<Time>,
     level: Res<GameLevel>,
 ) {
-    for (entity, mut pos, mut controller, global_position, mut transform) in query.iter_mut() {
-        if pos.path.is_none() {
-            let start_pos = global_position.translation();
-            let path = find_path(start_pos, pos.target, &*level, Some(2.), pos.search_radius);
-            if path.len() == 0 {
-
-                warn!(
-                        "Failed to find path from {:?} to {:?}. Skipping task.",
-                        start_pos, pos.target
-                    );
-                commands.entity(entity).remove::<MoveToPosition>();
-            } else {
-
-                let end_target = Vec3::new(pos.target.x, start_pos.y, pos.target.z);
-                let path = path.into_iter().chain(std::iter::once(end_target)).collect();
-                info!("Calculated path: {:?}", path);
-                pos.path = Some(PathTracker::new(path));
-            }
-        }
-
-        if let Some(ref mut path) = &mut pos.path {
-            if let Some(next) = path.next() {
-                let direction = next - global_position.translation();
-                let distance = direction.length_squared();
-                info!("Remaining distance: {}", distance.sqrt());
-                if distance < 1.0 {
-                    path.advance();
-                } else {
-                    let direction = direction.normalize();
-                    transform.look_to(direction * (Vec3::X + Vec3::Z), Vec3::Y);
-                    let speed = 5.0;
-                    let velocity = direction * speed * time.delta_seconds();
-                    controller.translation = Some(velocity);
-                }
-            } else {
-                info!("Completed MoveToPosition task for entity {:?}", entity);
-                commands.entity(entity).remove::<MoveToPosition>();
-            }
-        }
-    }
-
-    /*
     if let Ok(nav_mesh) = nav_mesh.get().try_read() {
         for (entity, mut pos, mut controller, global_position, mut transform) in query.iter_mut() {
             if pos.path.is_none() {
@@ -138,24 +98,26 @@ fn execute_move_to_position(
             if let Some(ref mut path) = &mut pos.path {
                 if let Some(next) = path.next() {
                     let direction = next - global_position.translation();
-                    let distance = direction.length_squared();
-                    info!("Remaining distance: {}", distance.sqrt());
-                    if distance < 1.0 {
-                        path.advance();
-                    } else {
-                        let direction = direction.normalize();
-                        transform.look_to(direction * (Vec3::X + Vec3::Z), Vec3::Y);
-                        let speed = 5.0;
-                        let velocity = direction * speed * time.delta_seconds();
-                        controller.translation = Some(velocity);
+                    if direction.is_nan() {
+                        continue;
                     }
+                    let distance = direction.length_squared();
+                    if distance < 0.01 {
+                        path.advance();
+                        continue;
+                    }
+                    let mut movement = direction.normalize();
+                    transform.look_to(movement * (Vec3::X + Vec3::Z), Vec3::Y);
+                    let speed = 5.0;
+                    let velocity = movement * speed * time.delta_seconds();
+                    controller.translation = Some(velocity);
                 } else {
                     info!("Completed MoveToPosition task for entity {:?}", entity);
                     commands.entity(entity).remove::<MoveToPosition>();
                 }
             }
         }
-    }*/
+    }
 }
 
 fn warn_about_invalid_move_to_position_target(
