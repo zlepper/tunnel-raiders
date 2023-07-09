@@ -7,10 +7,11 @@ mod ray_hit_helpers;
 mod selection;
 mod tasks;
 mod nav_mesh_debug;
+mod grid;
 
 use crate::camera_control::CameraControlPlugin;
 use crate::debug_text::DebugTextPlugin;
-use crate::game_level::{GameLevel, GridPosition, HALF_TILE_SIZE, TILE_SIZE};
+use crate::game_level::{GameLevel, HALF_TILE_SIZE, TILE_SIZE};
 use crate::prelude::*;
 use crate::selection::SelectionPlugin;
 use crate::tasks::{Minable, Miner, PlayerMovable, Standable, TasksPlugin};
@@ -20,9 +21,9 @@ use bevy_ecs::query::ReadOnlyWorldQuery;
 use bevy_editor_pls::prelude::*;
 use bevy_editor_pls::EditorWindowPlacement;
 use std::f32::consts::PI;
-use bevy::prelude::shape::Cube;
 use bevy_prototype_debug_lines::DebugLinesPlugin;
 use oxidized_navigation::{NavMeshAffector, NavMeshSettings, OxidizedNavigationPlugin};
+use crate::grid::GridPosition;
 use crate::nav_mesh_debug::NavMeshDebugPlugin;
 
 static ENABLE_EDITOR_PLUGIN: bool = true;
@@ -129,24 +130,7 @@ fn spawn_world(
                 spawn_wall(&mut commands, wall_mesh, &my_assets, pos, &mut mesh_assets);
             }
 
-            commands.spawn((
-                SceneBundle {
-                    scene: my_assets.floor.clone(),
-                    transform: Transform::from_translation(
-                        pos - Vec3::Y,
-                    ),
-                    ..default()
-                },
-                Collider::cuboid(TILE_SIZE / 2.0, 1.0, TILE_SIZE / 2.0),
-                NavMeshAffector,
-                RigidBody::Fixed,
-                Selectable {
-                    selection_ring_offset: Vec3::Y * 3.0,
-                },
-                Name::new(format!("Floor {} {}", x, z)),
-                PlayerInteractable,
-                Standable,
-            ));
+            spawn_floor_tile(&mut commands, &my_assets, pos);
         }
     }
 
@@ -183,6 +167,27 @@ fn spawn_world(
         },
         ..default()
     });
+}
+
+fn spawn_floor_tile(commands: &mut Commands, my_assets: &Res<MyAssets>, pos: Vec3) {
+    commands.spawn((
+        SceneBundle {
+            scene: my_assets.floor.clone(),
+            transform: Transform::from_translation(
+                pos - Vec3::Y,
+            ),
+            ..default()
+        },
+        Collider::cuboid(TILE_SIZE / 2.0, 1.0, TILE_SIZE / 2.0),
+        NavMeshAffector,
+        RigidBody::Fixed,
+        Selectable {
+            selection_ring_offset: Vec3::Y * 3.0,
+        },
+        Name::new(format!("Floor {} {}", pos.x, pos.z)),
+        PlayerInteractable,
+        Standable,
+    ));
 }
 
 fn spawn_wall(

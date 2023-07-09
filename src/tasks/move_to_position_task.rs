@@ -58,7 +58,6 @@ fn execute_move_to_position(
     nav_mesh_settings: Res<NavMeshSettings>,
     nav_mesh: Res<NavMesh>,
     time: Res<Time>,
-    level: Res<GameLevel>,
 ) {
     if let Ok(nav_mesh) = nav_mesh.get().try_read() {
         for (entity, mut pos, mut controller, global_position, mut transform) in query.iter_mut() {
@@ -106,7 +105,7 @@ fn execute_move_to_position(
                         path.advance();
                         continue;
                     }
-                    let mut movement = direction.normalize();
+                    let movement = direction.normalize();
                     transform.look_to(movement * (Vec3::X + Vec3::Z), Vec3::Y);
                     let speed = 5.0;
                     let velocity = movement * speed * time.delta_seconds();
