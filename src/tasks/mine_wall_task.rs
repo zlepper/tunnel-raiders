@@ -6,7 +6,8 @@ pub struct MineWallTaskPlugin;
 impl Plugin for MineWallTaskPlugin {
     fn build(&self, app: &mut App) {
         app.add_system(execute_mine_wall)
-            .add_system(start_mining_wall);
+            .add_system(start_mining_wall)
+            .register_task::<MineWallTask>();
     }
 }
 
@@ -46,6 +47,7 @@ fn execute_mine_wall(
             if wall.remaining_health <= 0.0 {
                 commands.entity(task.target).despawn_recursive();
                 commands.entity(entity).remove::<MineWallTask>();
+                info!("Completed mine wall task");
             }
         } else {
             info!("Target wall to mine no longer exists. Removing task.");

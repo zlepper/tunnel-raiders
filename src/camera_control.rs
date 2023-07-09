@@ -1,12 +1,12 @@
 use crate::prelude::*;
 use crate::ray_hit_helpers::get_hit;
 use crate::selection::WantToSelect;
+use crate::tasks::{Task, TaskQueueable};
 use crate::GameState;
 use bevy::window::PrimaryWindow;
 use leafwing_input_manager::action_state::ActionState;
 use leafwing_input_manager::user_input::InputKind;
 use leafwing_input_manager::user_input::Modifier;
-use crate::tasks::{Task, TaskQueueable};
 
 pub struct CameraControlPlugin;
 
@@ -16,9 +16,19 @@ impl Plugin for CameraControlPlugin {
             .add_system(rotate_camera.run_if(has_window_focus))
             .add_plugin(InputManagerPlugin::<ControlAction>::default())
             .add_system(spawn_camera.in_schedule(OnEnter(GameState::Playing)))
-            .add_system(select_things.run_if(has_window_focus))
-            .add_event::<InteractedWith>()
-            .add_system(interact_with_things.run_if(has_window_focus));
+            .insert_resource(MouseTargetedEntity { target: None })
+            .add_system(mouse_over_things.run_if(has_window_focus))
+            .add_system(
+                (interact_with_things)
+                    .run_if(has_window_focus)
+                    .after(mouse_over_things),
+            )
+            .add_system(
+                (select_things)
+                    .run_if(has_window_focus)
+                    .after(mouse_over_things),
+            )
+            .add_event::<InteractedWith>();
     }
 }
 
@@ -35,7 +45,7 @@ pub fn has_window_focus(windows: Query<&Window, With<PrimaryWindow>>) -> bool {
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_xyz(10.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
+            transform: Transform::from_xyz(15.0, 20.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         },
         InputManagerBundle::<ControlAction> {
@@ -161,30 +171,29 @@ fn rotate_camera(
 pub struct Selector;
 
 fn select_things(
-    q: Query<(&GlobalTransform, &ActionState<ControlAction>, &Camera), With<Selector>>,
-    rapier_context: Res<RapierContext>,
-    windows: Query<&Window>,
+    q: Query<&ActionState<ControlAction>>,
     selectable: Query<(), With<Selectable>>,
-    mut event_writer: EventWriter<WantToSelect>,
+    mut events: EventWriter<WantToSelect>,
+    mouse_target: Res<MouseTargetedEntity>,
 ) {
-    for (transform, action_state, camera) in q.iter() {
+    for action_state in q.iter() {
         if action_state.just_pressed(ControlAction::Select)
             || action_state.just_pressed(ControlAction::SelectAdditional)
         {
-            let hit = get_hit(&transform, &camera, &rapier_context, &windows, |e| {
-                selectable.contains(e)
-            });
+            if let Some(target) = &mouse_target.target {
+                if let Ok(_) = selectable.get(target.entity) {
+                    info!("Hit {:?} at {:?}", target.entity, target.intersection);
 
-            if let Some((entity, ray_intersection)) = hit {
-                debug!("Hit {:?} at {:?}", entity, ray_intersection);
+                    let append = action_state.just_pressed(ControlAction::SelectAdditional);
 
-                if action_state.just_pressed(ControlAction::SelectAdditional) {
-                    event_writer.send(WantToSelect::Additionally(entity));
-                } else {
-                    event_writer.send(WantToSelect::Exclusively(entity));
+                    if append {
+                        events.send(WantToSelect::Additionally(target.entity));
+                    } else {
+                        events.send(WantToSelect::Exclusively(target.entity))
+                    }
                 }
             } else {
-                debug!("No hit")
+                info!("No hit")
             }
         }
     }
@@ -218,12 +227,13 @@ impl InteractedWith {
 }
 
 pub trait InteractedWithMultiHelper<T> {
-
     fn add_interaction_to_queue(&self, queue: &mut TaskQueue, task: T);
 }
 
-impl<T> InteractedWithMultiHelper<T> for InteractedWith where T: Component + Task {
-
+impl<T> InteractedWithMultiHelper<T> for InteractedWith
+where
+    T: Component + Task,
+{
     fn add_interaction_to_queue(&self, queue: &mut TaskQueue, task: T) {
         if self.append {
             queue.add_task(task);
@@ -234,26 +244,62 @@ impl<T> InteractedWithMultiHelper<T> for InteractedWith where T: Component + Tas
 }
 
 fn interact_with_things(
-    q: Query<(&GlobalTransform, &ActionState<ControlAction>, &Camera), With<Selector>>,
-    rapier_context: Res<RapierContext>,
-    windows: Query<&Window>,
+    q: Query<&ActionState<ControlAction>>,
     interactable: Query<(), With<PlayerInteractable>>,
     mut events: EventWriter<InteractedWith>,
+    mouse_target: Res<MouseTargetedEntity>,
 ) {
-    for (transform, action_state, camera) in q.iter() {
-        if action_state.just_pressed(ControlAction::Interact) || action_state.just_pressed(ControlAction::InteractAdditional) {
-            let hit = get_hit(&transform, &camera, &rapier_context, &windows, |e| {
-                interactable.contains(e)
-            });
+    for action_state in q.iter() {
+        if action_state.just_pressed(ControlAction::Interact)
+            || action_state.just_pressed(ControlAction::InteractAdditional)
+        {
+            if let Some(target) = &mouse_target.target {
+                if let Ok(_) = interactable.get(target.entity) {
+                    info!("Hit {:?} at {:?}", target.entity, target.intersection);
 
-            if let Some((entity, ray_intersection)) = hit {
-                info!("Hit {:?} at {:?}", entity, ray_intersection);
-
-                let append = action_state.just_pressed(ControlAction::InteractAdditional);
-                events.send(InteractedWith::new(entity, ray_intersection, append));
+                    let append = action_state.just_pressed(ControlAction::InteractAdditional);
+                    events.send(InteractedWith::new(
+                        target.entity,
+                        target.intersection,
+                        append,
+                    ));
+                }
             } else {
                 info!("No hit")
             }
+        }
+    }
+}
+
+#[derive(Resource)]
+pub struct MouseTargetedEntity {
+    pub target: Option<MouseTargetedEntityTarget>,
+}
+
+pub struct MouseTargetedEntityTarget {
+    pub entity: Entity,
+    pub intersection: RayIntersection,
+}
+
+fn mouse_over_things(
+    q: Query<(&GlobalTransform, &Camera), With<Selector>>,
+    rapier_context: Res<RapierContext>,
+    windows: Query<&Window>,
+    targetable: Query<(), Or<(With<PlayerInteractable>, With<Selectable>)>>,
+    mut mouse_target: ResMut<MouseTargetedEntity>,
+) {
+    for (transform, camera) in q.iter() {
+        let hit = get_hit(&transform, &camera, &rapier_context, &windows, |e| {
+            targetable.contains(e)
+        });
+
+        if let Some((entity, ray_intersection)) = hit {
+            mouse_target.target = Some(MouseTargetedEntityTarget {
+                entity,
+                intersection: ray_intersection,
+            });
+        } else {
+            mouse_target.target = None;
         }
     }
 }

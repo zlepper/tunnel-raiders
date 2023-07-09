@@ -1,3 +1,4 @@
+use std::fmt::Formatter;
 use crate::mesh_generation::{generate_wall_mesh, WallGenerationArgs};
 use crate::prelude::*;
 
@@ -8,6 +9,7 @@ pub struct GameLevel {
 }
 
 pub const TILE_SIZE: f32 = 10.0;
+pub const HALF_TILE_SIZE: f32 = TILE_SIZE / 2.0;
 
 impl GameLevel {
     pub fn new(height: i32, width: i32) -> Self {
@@ -64,6 +66,10 @@ impl GameLevel {
             has_north_wall: !self.is_open(x, z + 1),
             has_west_wall: !self.is_open(x - 1, z),
             has_east_wall: !self.is_open(x + 1, z),
+            has_north_east_wall: !self.is_open(x + 1, z + 1),
+            has_north_west_wall: !self.is_open(x - 1, z + 1),
+            has_south_east_wall: !self.is_open(x + 1, z - 1),
+            has_south_west_wall: !self.is_open(x - 1, z - 1),
             width: TILE_SIZE,
             height: TILE_SIZE,
         });
@@ -71,13 +77,26 @@ impl GameLevel {
         Some(mesh)
     }
 
-    fn is_open(&self, x: i32, z: i32) -> bool {
+    pub fn is_open(&self, x: i32, z: i32) -> bool {
         *self.open_tiles.get(x, z).unwrap_or(&false)
     }
 
     pub fn iter_tiles(&self) -> impl Iterator<Item = GridPosition> {
         let height = self.height();
         (0..self.width()).flat_map(move |x| (0..height).map(move |y| GridPosition { x, z: y }))
+    }
+
+    pub fn get_tile_at(&self, pos: Vec3) -> GridPosition {
+        let x = (pos.x / TILE_SIZE).floor() as i32;
+        let z = (pos.z / TILE_SIZE).floor() as i32;
+        GridPosition { x, z }
+    }
+
+
+    pub fn get_position_at(&self, pos: GridPosition) -> Vec3 {
+        let x = pos.x as f32 * TILE_SIZE + HALF_TILE_SIZE;
+        let z = pos.z as f32 * TILE_SIZE + HALF_TILE_SIZE;
+        Vec3::new(x, 0.0, z)
     }
 }
 
@@ -89,40 +108,44 @@ pub struct Grid<T> {
 }
 
 impl<T> Grid<T> {
-    fn width(&self) -> i32 {
+    pub fn width(&self) -> i32 {
         self.width
     }
 
-    fn height(&self) -> i32 {
+    pub fn height(&self) -> i32 {
         self.height
     }
 
-    fn get(&self, x: i32, z: i32) -> Option<&T> {
-        if x < 0 || z < 0 {
-            return None;
-        }
-
-        if x >= self.width || z >= self.height {
+    pub fn get(&self, x: i32, z: i32) -> Option<&T> {
+        if !self.is_within(x, z) {
             return None;
         }
 
         self.items.get((x + z * self.width) as usize)
     }
 
-    fn get_mut(&mut self, x: i32, z: i32) -> Option<&mut T> {
+    pub fn get_mut(&mut self, x: i32, z: i32) -> Option<&mut T> {
+        if !self.is_within(x, z) {
+            return None;
+        }
+
         self.items.get_mut((x + z * self.width) as usize)
     }
 
-    fn set(&mut self, x: i32, z: i32, value: T) {
+    pub fn set(&mut self, x: i32, z: i32, value: T) {
         assert!(x < self.width);
         assert!(z < self.height);
         self.items[(x + z * self.width) as usize] = value;
     }
 
-    fn map<S: Default>(&self, operate: impl Fn(&T) -> S) -> Grid<S> {
+    pub fn map<S: Default>(&self, operate: impl Fn(&T) -> S) -> Grid<S> {
         let new_items = self.items.iter().map(operate).collect();
 
         Grid::new_from_list(self.width, self.height, new_items)
+    }
+
+    fn is_within(&self, x: i32, z: i32) -> bool {
+        x >= 0 && x < self.width && z >= 0 && z < self.height
     }
 
     fn new_from_list(width: i32, height: i32, items: Vec<T>) -> Self {
@@ -139,7 +162,7 @@ impl<T> Grid<T>
 where
     T: Clone,
 {
-    fn new(width: i32, height: i32, initial_value: T) -> Self {
+    pub fn new(width: i32, height: i32, initial_value: T) -> Self {
         let count = width * height;
         let mut items = Vec::with_capacity(count as usize);
         for _ in 0..count {
@@ -153,10 +176,32 @@ where
     }
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Hash, Debug, Clone, Copy)]
 pub struct GridPosition {
     pub x: i32,
     pub z: i32,
+}
+
+impl GridPosition {
+    pub fn distance(&self, other: &Self) -> f32 {
+        (self.distance_squared(other) as f32).sqrt()
+    }
+
+    pub fn distance_squared(&self, other: &Self) -> i64 {
+        let dx = (self.x - other.x) as i64;
+        let dz = (self.z - other.z) as i64;
+        dx * dx + dz * dz
+    }
+
+    pub fn new(x: i32, z: i32) -> Self {
+        Self { x, z }
+    }
+}
+
+impl std::fmt::Display for GridPosition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.x, self.z)
+    }
 }
 
 fn flood_fill_grid<T>(
@@ -329,5 +374,23 @@ mod tests {
         };
 
         assert_eq!(level, expected);
+    }
+
+    #[test]
+    fn test_tile_positions() {
+        let level = GameLevel::new(10, 10);
+
+
+        assert_eq!(level.get_position_at(GridPosition::new(0, 0)), Vec3::new(5.0, 0.0, 5.0));
+        assert_eq!(level.get_position_at(GridPosition::new(1, 1)), Vec3::new(15.0, 0.0, 15.0));
+
+
+        assert_eq!(level.get_tile_at(Vec3::new(5.0, 0.0, 5.0)), GridPosition::new(0, 0));
+        assert_eq!(level.get_tile_at(Vec3::new(1.0, 0.0, 1.0)), GridPosition::new(0, 0));
+        assert_eq!(level.get_tile_at(Vec3::new(9.0, 0.0, 9.0)), GridPosition::new(0, 0));
+        assert_eq!(level.get_tile_at(Vec3::new(9.0, 0.0, 1.0)), GridPosition::new(0, 0));
+        assert_eq!(level.get_tile_at(Vec3::new(1.0, 0.0, 9.0)), GridPosition::new(0, 0));
+        assert_eq!(level.get_tile_at(Vec3::new(11.0, 0.0, 11.0)), GridPosition::new(1, 1));
+        assert_eq!(level.get_tile_at(Vec3::new(19.0, 0.0, 19.0)), GridPosition::new(1, 1));
     }
 }

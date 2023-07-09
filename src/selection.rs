@@ -70,16 +70,23 @@ fn add_glow_highlight_material(
 }
 
 fn highlight_selected(
-    selected: Query<(Entity, &GlobalTransform, &Selectable), Added<Selected>>,
+    selected: Query<(Entity, &GlobalTransform, &Selectable, Option<&Aabb>), Added<Selected>>,
     mut commands: Commands,
     children: Query<&Children>,
     mesh_query: Query<(&Aabb, &GlobalTransform)>,
     glow_material: Res<GlowHighlightMaterial>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    for (entity, main_transform, selectable) in selected.iter() {
+    for (entity, main_transform, selectable, root_aabb) in selected.iter() {
         let mut extreme_min = main_transform.translation_vec3a();
         let mut extreme_max = extreme_min.clone();
+
+        if let Some(aabb) = root_aabb {
+            let global_center = main_transform.translation_vec3a() + aabb.center;
+
+            extreme_min = global_center - aabb.half_extents;
+            extreme_max = global_center + aabb.half_extents;
+        }
 
         for child in children.iter_descendants(entity) {
             if let Ok((aabb, transform)) = mesh_query.get(child) {

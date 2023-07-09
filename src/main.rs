@@ -1,24 +1,27 @@
 mod camera_control;
-mod prelude;
-mod selection;
-mod tasks;
-mod ray_hit_helpers;
+mod debug_text;
 mod game_level;
 mod mesh_generation;
+mod path_finding;
+mod prelude;
+mod ray_hit_helpers;
+mod selection;
+mod tasks;
 
-use std::f32::consts::PI;
 use crate::camera_control::CameraControlPlugin;
+use crate::debug_text::DebugTextPlugin;
+use crate::game_level::{GameLevel, GridPosition, HALF_TILE_SIZE, TILE_SIZE};
 use crate::prelude::*;
 use crate::selection::SelectionPlugin;
+use crate::tasks::{Minable, Miner, PlayerMovable, Standable, TasksPlugin};
 use bevy::window::ExitCondition;
 use bevy::DefaultPlugins;
 use bevy_ecs::query::ReadOnlyWorldQuery;
 use bevy_editor_pls::prelude::*;
 use bevy_editor_pls::EditorWindowPlacement;
-use crate::game_level::GameLevel;
-use crate::tasks::{Minable, Miner, TasksPlugin, PlayerMovable, Standable};
+use std::f32::consts::PI;
 
-static ENABLE_EDITOR_PLUGIN: bool = false;
+static ENABLE_EDITOR_PLUGIN: bool = true;
 
 fn main() {
     let mut app = App::new();
@@ -54,6 +57,7 @@ fn main() {
         .add_plugin(CameraControlPlugin)
         .add_plugin(SelectionPlugin)
         .add_plugin(TasksPlugin)
+        .add_plugin(DebugTextPlugin)
         .add_loading_state(
             LoadingState::new(GameState::Loading).continue_to_state(GameState::Playing),
         )
@@ -77,10 +81,11 @@ struct MyAssets {
     pub raider: Handle<Scene>,
 }
 
-const TILE_SIZE: f32 = 10.0;
-
-fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>, mut mesh_assets: ResMut<Assets<Mesh>>) {
-
+fn spawn_world(
+    mut commands: Commands,
+    my_assets: Res<MyAssets>,
+    mut mesh_assets: ResMut<Assets<Mesh>>,
+) {
     let mut level = GameLevel::new(10, 10);
 
     for x in 1..=9 {
@@ -96,13 +101,16 @@ fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>, mut mesh_assets
     for x in -1..=11 {
         for z in -1..=11 {
             if let Some(wall_mesh) = level.create_wall_mesh(x, z) {
-                spawn_wall(&mut commands, wall_mesh, &my_assets, x, z, &mut mesh_assets);
+                let pos = level.get_position_at(GridPosition::new(x, z));
+                spawn_wall(&mut commands, wall_mesh, &my_assets, pos, &mut mesh_assets);
             }
 
             commands.spawn((
                 SceneBundle {
                     scene: my_assets.floor.clone(),
-                    transform: Transform::from_xyz(x as f32 * TILE_SIZE, 0.0, z as f32 * TILE_SIZE),
+                    transform: Transform::from_translation(
+                        level.get_position_at(GridPosition::new(x, z)) - Vec3::Y,
+                    ),
                     ..default()
                 },
                 Collider::cuboid(TILE_SIZE / 2.0, 1.0, TILE_SIZE / 2.0),
@@ -115,13 +123,14 @@ fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>, mut mesh_assets
                 Standable,
             ));
         }
-
     }
+
+    commands.insert_resource(level);
 
     commands.spawn((
         SceneBundle {
             scene: my_assets.raider.clone(),
-            transform: Transform::from_xyz(0.0, 3.2, 0.0),
+            transform: Transform::from_xyz(15.0, 3.2, 15.0),
             ..default()
         },
         Collider::cuboid(0.6, 3., 0.4),
@@ -135,14 +144,13 @@ fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>, mut mesh_assets
         Miner,
     ));
 
-
     // light
     commands.spawn(DirectionalLightBundle {
-       directional_light: DirectionalLight {
-           shadows_enabled: true,
-           illuminance: 10000.0,
-           ..default()
-       },
+        directional_light: DirectionalLight {
+            shadows_enabled: true,
+            illuminance: 10000.0,
+            ..default()
+        },
         transform: Transform {
             translation: Vec3::new(0.0, 20.0, 0.0),
             rotation: Quat::from_rotation_x(-PI / 4.),
@@ -152,18 +160,19 @@ fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>, mut mesh_assets
     });
 }
 
-fn spawn_wall(commands: &mut Commands, mesh: Mesh, my_assets: &Res<MyAssets>, i: i32, j: i32, mesh_assets: &mut ResMut<Assets<Mesh>>) {
-
-    let collider = Collider::from_bevy_mesh(&mesh, &default()).expect("Failed to create collider from mesh");
-
+fn spawn_wall(
+    commands: &mut Commands,
+    mesh: Mesh,
+    my_assets: &Res<MyAssets>,
+    position: Vec3,
+    mesh_assets: &mut ResMut<Assets<Mesh>>,
+) {
+    let collider =
+        Collider::from_bevy_mesh(&mesh, &default()).expect("Failed to create collider from mesh");
 
     commands.spawn((
         PbrBundle {
-            transform: Transform::from_xyz(
-                i as f32 * TILE_SIZE,
-                TILE_SIZE / 2.0 - 0.5,
-                j as f32 * TILE_SIZE,
-            ),
+            transform: Transform::from_xyz(position.x, HALF_TILE_SIZE, position.z),
             material: my_assets.wall_material.clone(),
             mesh: mesh_assets.add(mesh),
             ..default()
@@ -171,7 +180,7 @@ fn spawn_wall(commands: &mut Commands, mesh: Mesh, my_assets: &Res<MyAssets>, i:
         collider,
         RigidBody::Fixed,
         Selectable::default(),
-        Name::new(format!("Wall {} {}", i, j)),
+        Name::new(format!("Wall {} {}", position.x, position.z)),
         PlayerInteractable,
         Minable {
             max_health: 5.,
