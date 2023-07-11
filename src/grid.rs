@@ -83,16 +83,6 @@ pub struct GridPosition {
 }
 
 impl GridPosition {
-    pub fn distance(&self, other: &Self) -> f32 {
-        (self.distance_squared(other) as f32).sqrt()
-    }
-
-    pub fn distance_squared(&self, other: &Self) -> i64 {
-        let dx = (self.x - other.x) as i64;
-        let dz = (self.z - other.z) as i64;
-        dx * dx + dz * dz
-    }
-
     pub fn new(x: i32, z: i32) -> Self {
         Self { x, z }
     }

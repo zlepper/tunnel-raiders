@@ -1,5 +1,4 @@
 use crate::grid::{flood_fill_grid, Grid, GridPosition};
-use crate::mesh_generation::{generate_wall_mesh, WallGenerationArgs};
 use crate::prelude::*;
 
 #[derive(Resource, Eq, PartialEq, Debug)]
@@ -55,28 +54,6 @@ impl GameLevel {
         }
     }
 
-    pub fn create_wall_mesh(&self, x: i32, z: i32) -> Option<Mesh> {
-        // Can't make a mesh if the wall is not there.
-        if self.is_open(x, z) {
-            return None;
-        }
-
-        let mesh = generate_wall_mesh(WallGenerationArgs {
-            has_south_wall: !self.is_open(x, z - 1),
-            has_north_wall: !self.is_open(x, z + 1),
-            has_west_wall: !self.is_open(x - 1, z),
-            has_east_wall: !self.is_open(x + 1, z),
-            has_north_east_wall: !self.is_open(x + 1, z + 1),
-            has_north_west_wall: !self.is_open(x - 1, z + 1),
-            has_south_east_wall: !self.is_open(x + 1, z - 1),
-            has_south_west_wall: !self.is_open(x - 1, z - 1),
-            width: TILE_SIZE,
-            height: TILE_SIZE,
-        });
-
-        Some(mesh)
-    }
-
     pub fn is_open(&self, x: i32, z: i32) -> bool {
         *self.open_tiles.get(x, z).unwrap_or(&false)
     }
@@ -97,6 +74,10 @@ impl GameLevel {
         let x = pos.x as f32 * TILE_SIZE + HALF_TILE_SIZE;
         let z = pos.z as f32 * TILE_SIZE + HALF_TILE_SIZE;
         Vec3::new(x, 0.0, z)
+    }
+
+    pub fn within(&self, x: i32, z: i32) -> bool {
+        x >= 0 && x < self.width() && z >= 0 && z < self.height()
     }
 }
 

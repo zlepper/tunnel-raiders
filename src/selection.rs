@@ -22,7 +22,7 @@ impl Plugin for SelectionPlugin {
         app.add_event::<WantToSelect>()
             .add_system(select_exclusively)
             .add_system(highlight_selected)
-            .add_system(unhighlight_deselected)
+            .add_system(unhighlight_deselected.in_base_set(CoreSet::PostUpdate))
             .add_startup_system(add_glow_highlight_material);
     }
 }

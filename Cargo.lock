@@ -3937,6 +3937,7 @@ dependencies = [
  "bevy_hanabi",
  "bevy_prototype_debug_lines",
  "bevy_rapier3d",
+ "itertools",
  "leafwing-input-manager",
  "oxidized_navigation",
  "schemars",

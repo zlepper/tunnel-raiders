@@ -1,20 +1,20 @@
 mod camera_control;
 mod debug_text;
 mod game_level;
-mod mesh_generation;
 mod prelude;
 mod ray_hit_helpers;
 mod selection;
 mod tasks;
 mod nav_mesh_debug;
 mod grid;
+mod game_level_render;
 
 use crate::camera_control::CameraControlPlugin;
 use crate::debug_text::DebugTextPlugin;
-use crate::game_level::{GameLevel, HALF_TILE_SIZE, TILE_SIZE};
+use crate::game_level::{GameLevel};
 use crate::prelude::*;
 use crate::selection::SelectionPlugin;
-use crate::tasks::{Minable, Miner, PlayerMovable, Standable, TasksPlugin};
+use crate::tasks::{Miner, PlayerMovable, TasksPlugin};
 use bevy::window::ExitCondition;
 use bevy::DefaultPlugins;
 use bevy_ecs::query::ReadOnlyWorldQuery;
@@ -22,11 +22,11 @@ use bevy_editor_pls::prelude::*;
 use bevy_editor_pls::EditorWindowPlacement;
 use std::f32::consts::PI;
 use bevy_prototype_debug_lines::DebugLinesPlugin;
-use oxidized_navigation::{NavMeshAffector, NavMeshSettings, OxidizedNavigationPlugin};
-use crate::grid::GridPosition;
+use oxidized_navigation::{NavMeshSettings, OxidizedNavigationPlugin};
+use crate::game_level_render::GameLevelRenderPlugin;
 use crate::nav_mesh_debug::NavMeshDebugPlugin;
 
-static ENABLE_EDITOR_PLUGIN: bool = true;
+static ENABLE_EDITOR_PLUGIN: bool = false;
 
 fn main() {
     let mut app = App::new();
@@ -83,6 +83,7 @@ fn main() {
         .add_plugin(TasksPlugin)
         .add_plugin(DebugTextPlugin)
         .add_plugin(NavMeshDebugPlugin)
+        .add_plugin(GameLevelRenderPlugin)
         .add_loading_state(
             LoadingState::new(GameState::Loading).continue_to_state(GameState::Playing),
         )
@@ -93,23 +94,31 @@ fn main() {
 
 #[derive(AssetCollection, Resource)]
 struct MyAssets {
-    #[asset(path = "wall.gltf#Scene0")]
-    pub wall: Handle<Scene>,
+    #[asset(path = "wall.gltf#Mesh4/Primitive0")]
+    pub full_wall_mesh: Handle<Mesh>,
+
+    #[asset(path = "wall.gltf#Mesh5/Primitive0")]
+    pub three_way_wall_mesh: Handle<Mesh>,
+
+    #[asset(path = "wall.gltf#Mesh6/Primitive0")]
+    pub outer_corner_wall_mesh: Handle<Mesh>,
+
+    #[asset(path = "wall.gltf#Mesh7/Primitive0")]
+    pub inner_corner_wall_mesh: Handle<Mesh>,
 
     #[asset(path = "wall.gltf#Material0")]
     pub wall_material: Handle<StandardMaterial>,
 
-    #[asset(path = "wall.gltf#Scene1")]
+    #[asset(path = "wall.gltf#Scene2")]
     pub floor: Handle<Scene>,
 
-    #[asset(path = "wall.gltf#Scene2")]
+    #[asset(path = "wall.gltf#Scene3")]
     pub raider: Handle<Scene>,
 }
 
 fn spawn_world(
     mut commands: Commands,
     my_assets: Res<MyAssets>,
-    mut mesh_assets: ResMut<Assets<Mesh>>,
 ) {
     let mut level = GameLevel::new(10, 10);
 
@@ -121,17 +130,6 @@ fn spawn_world(
     for z in 1..=9 {
         level.remove_wall(1, z);
         level.remove_wall(9, z);
-    }
-
-    for x in -1..=11 {
-        for z in -1..=11 {
-            let pos = level.get_position_at(GridPosition::new(x, z));// - Vec3::new(50., 0., 50.);
-            if let Some(wall_mesh) = level.create_wall_mesh(x, z) {
-                spawn_wall(&mut commands, wall_mesh, &my_assets, pos, &mut mesh_assets);
-            }
-
-            spawn_floor_tile(&mut commands, &my_assets, pos);
-        }
     }
 
     commands.insert_resource(level);
@@ -167,57 +165,6 @@ fn spawn_world(
         },
         ..default()
     });
-}
-
-fn spawn_floor_tile(commands: &mut Commands, my_assets: &Res<MyAssets>, pos: Vec3) {
-    commands.spawn((
-        SceneBundle {
-            scene: my_assets.floor.clone(),
-            transform: Transform::from_translation(
-                pos - Vec3::Y,
-            ),
-            ..default()
-        },
-        Collider::cuboid(TILE_SIZE / 2.0, 1.0, TILE_SIZE / 2.0),
-        NavMeshAffector,
-        RigidBody::Fixed,
-        Selectable {
-            selection_ring_offset: Vec3::Y * 3.0,
-        },
-        Name::new(format!("Floor {} {}", pos.x, pos.z)),
-        PlayerInteractable,
-        Standable,
-    ));
-}
-
-fn spawn_wall(
-    commands: &mut Commands,
-    mesh: Mesh,
-    my_assets: &Res<MyAssets>,
-    position: Vec3,
-    mesh_assets: &mut ResMut<Assets<Mesh>>,
-) {
-    let collider =
-        Collider::from_bevy_mesh(&mesh, &default()).expect("Failed to create collider from mesh");
-
-    commands.spawn((
-        PbrBundle {
-            transform: Transform::from_xyz(position.x, HALF_TILE_SIZE, position.z),
-            material: my_assets.wall_material.clone(),
-            mesh: mesh_assets.add(mesh),
-            ..default()
-        },
-        collider,
-        RigidBody::Fixed,
-        Selectable::default(),
-        Name::new(format!("Wall {} {}", position.x, position.z)),
-        PlayerInteractable,
-        NavMeshAffector,
-        Minable {
-            max_health: 5.,
-            remaining_health: 5.,
-        },
-    ));
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
