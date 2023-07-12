@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::ray_hit_helpers::get_hit;
 use crate::selection::WantToSelect;
-use crate::tasks::{Task, TaskQueueable};
+use crate::errands::{Errand, ErrandQueueable};
 use crate::GameState;
 use bevy::window::PrimaryWindow;
 use leafwing_input_manager::action_state::ActionState;
@@ -217,28 +217,28 @@ impl InteractedWith {
         }
     }
 
-    pub fn add_interaction_to_queue(&self, mut queue: &mut TaskQueue, task: impl TaskQueueable) {
+    pub fn add_interaction_to_queue(&self, mut queue: &mut ErrandQueue, errand: impl ErrandQueueable) {
         if self.append {
-            task.add_to_task_queue(&mut queue);
+            errand.add_to_errand_queue(&mut queue);
         } else {
-            task.override_task(&mut queue);
+            errand.override_errand(&mut queue);
         }
     }
 }
 
 pub trait InteractedWithMultiHelper<T> {
-    fn add_interaction_to_queue(&self, queue: &mut TaskQueue, task: T);
+    fn add_interaction_to_queue(&self, queue: &mut ErrandQueue, errand: T);
 }
 
 impl<T> InteractedWithMultiHelper<T> for InteractedWith
 where
-    T: Component + Task,
+    T: Component + Errand,
 {
-    fn add_interaction_to_queue(&self, queue: &mut TaskQueue, task: T) {
+    fn add_interaction_to_queue(&self, queue: &mut ErrandQueue, errand: T) {
         if self.append {
-            queue.add_task(task);
+            queue.add_errand(errand);
         } else {
-            queue.override_task(task);
+            queue.override_errand(errand);
         }
     }
 }

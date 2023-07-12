@@ -2,7 +2,8 @@ use oxidized_navigation::{NavMesh, NavMeshSettings, query::find_path};
 use crate::game_level::GameLevel;
 use crate::has_any_query_matches;
 use crate::prelude::*;
-use crate::tasks::Task;
+use crate::errands::Errand;
+use crate::errands::errand_queue::ErrandQueue;
 
 #[derive(Component)]
 pub struct MoveToPosition {
@@ -21,7 +22,7 @@ impl MoveToPosition {
     }
 }
 
-impl Task for MoveToPosition {
+impl Errand for MoveToPosition {
     fn name(&self) -> String {
         format!("Move to position {}, {}", self.target.x, self.target.z)
     }
@@ -85,7 +86,7 @@ fn execute_move_to_position(
                     }
                     Err(e) => {
                         warn!(
-                            "Failed to find path from {:?} to {:?}. Skipping task. Error: {:?}",
+                            "Failed to find path from {:?} to {:?}. Skipping errand. Error: {:?}",
                             start_pos, pos.target, e
                         );
                         // commands.entity(entity).remove::<MoveToPosition>();
@@ -111,7 +112,7 @@ fn execute_move_to_position(
                     let velocity = movement * speed * time.delta_seconds();
                     controller.translation = Some(velocity);
                 } else {
-                    info!("Completed MoveToPosition task for entity {:?}", entity);
+                    info!("Completed MoveToPosition errand for entity {:?}", entity);
                     commands.entity(entity).remove::<MoveToPosition>();
                 }
             }
@@ -130,16 +131,16 @@ fn warn_about_invalid_move_to_position_target(
         let display_name = name
             .map(|n| n.to_string())
             .unwrap_or_else(|| format!("{:?}", entity));
-        warn!("Entity {:?} has a MoveToPosition task, but no KinematicCharacterController. Removing task.", display_name);
+        warn!("Entity {:?} has a MoveToPosition errand, but no KinematicCharacterController. Removing errand.", display_name);
         commands.entity(entity).remove::<MoveToPosition>();
     }
 }
 
-pub struct MoveToPositionTaskPlugin;
+pub struct MoveToPositionErrandPlugin;
 
-impl Plugin for MoveToPositionTaskPlugin {
+impl Plugin for MoveToPositionErrandPlugin {
     fn build(&self, app: &mut App) {
-        app.register_task::<MoveToPosition>()
+        app.register_errand::<MoveToPosition>()
             .add_system(execute_move_to_position.run_if(resource_exists::<GameLevel>()))
             .add_system(warn_about_invalid_move_to_position_target.run_if(
                 has_any_query_matches::<(
@@ -158,7 +159,7 @@ pub struct PlayerMovable;
 pub struct Standable;
 
 fn move_selected_raider_to_target(
-    mut movable: Query<&mut TaskQueue, (With<PlayerMovable>, With<Selected>)>,
+    mut movable: Query<&mut ErrandQueue, (With<PlayerMovable>, With<Selected>)>,
     interactable: Query<(), With<Standable>>,
     mut events: EventReader<InteractedWith>,
 ) {

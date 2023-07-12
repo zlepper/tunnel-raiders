@@ -1,10 +1,11 @@
 use crate::game_level::{GameLevel, HALF_TILE_SIZE, TILE_SIZE};
 use crate::grid::GridPosition;
 use crate::prelude::*;
-use crate::tasks::{Minable, Standable};
+use crate::errands::{Minable, Standable};
 use crate::{GameState, MyAssets};
 use oxidized_navigation::NavMeshAffector;
 use std::collections::HashMap;
+use crate::gizmos::EntityGizmos;
 
 pub struct GameLevelRenderPlugin;
 
@@ -95,6 +96,7 @@ fn spawn_map_content(
                                 max_health: 5.,
                                 remaining_health: 5.,
                             },
+                            EntityGizmos::default(),
                         ))
                         .id();
 

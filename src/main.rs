@@ -4,17 +4,18 @@ mod game_level;
 mod prelude;
 mod ray_hit_helpers;
 mod selection;
-mod tasks;
+mod errands;
 mod nav_mesh_debug;
 mod grid;
 mod game_level_render;
+mod gizmos;
 
 use crate::camera_control::CameraControlPlugin;
 use crate::debug_text::DebugTextPlugin;
 use crate::game_level::{GameLevel};
 use crate::prelude::*;
 use crate::selection::SelectionPlugin;
-use crate::tasks::{Miner, PlayerMovable, TasksPlugin};
+use crate::errands::{Miner, PlayerMovable, ErrandsPlugin};
 use bevy::window::ExitCondition;
 use bevy::DefaultPlugins;
 use bevy_ecs::query::ReadOnlyWorldQuery;
@@ -24,6 +25,7 @@ use std::f32::consts::PI;
 use bevy_prototype_debug_lines::DebugLinesPlugin;
 use oxidized_navigation::{NavMeshSettings, OxidizedNavigationPlugin};
 use crate::game_level_render::GameLevelRenderPlugin;
+use crate::gizmos::GizmosPlugin;
 use crate::nav_mesh_debug::NavMeshDebugPlugin;
 
 static ENABLE_EDITOR_PLUGIN: bool = false;
@@ -80,10 +82,11 @@ fn main() {
         .add_state::<GameState>()
         .add_plugin(CameraControlPlugin)
         .add_plugin(SelectionPlugin)
-        .add_plugin(TasksPlugin)
+        .add_plugin(ErrandsPlugin)
         .add_plugin(DebugTextPlugin)
         .add_plugin(NavMeshDebugPlugin)
         .add_plugin(GameLevelRenderPlugin)
+        .add_plugin(GizmosPlugin)
         .add_loading_state(
             LoadingState::new(GameState::Loading).continue_to_state(GameState::Playing),
         )
@@ -114,6 +117,9 @@ struct MyAssets {
 
     #[asset(path = "wall.gltf#Scene3")]
     pub raider: Handle<Scene>,
+
+    #[asset(path = "drill-icon.png")]
+    pub mine_wall_icon: Handle<Image>
 }
 
 fn spawn_world(
@@ -144,7 +150,7 @@ fn spawn_world(
         Name::new(format!("Raider")),
         RigidBody::KinematicVelocityBased,
         LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z,
-        TaskQueue::new(),
+        ErrandQueue::new(),
         KinematicCharacterController::default(),
         Selectable::default(),
         PlayerMovable,
