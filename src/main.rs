@@ -147,7 +147,7 @@ fn spawn_world(
             ..default()
         },
         Collider::cuboid(0.6, 3., 0.4),
-        Name::new(format!("Raider")),
+        Name::new("Raider".to_string()),
         RigidBody::KinematicVelocityBased,
         LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z,
         ErrandQueue::new(),

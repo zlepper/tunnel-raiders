@@ -79,7 +79,7 @@ fn highlight_selected(
 ) {
     for (entity, main_transform, selectable, root_aabb) in selected.iter() {
         let mut extreme_min = main_transform.translation_vec3a();
-        let mut extreme_max = extreme_min.clone();
+        let mut extreme_max = extreme_min;
 
         if let Some(aabb) = root_aabb {
             let global_center = main_transform.translation_vec3a() + aabb.center;

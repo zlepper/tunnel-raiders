@@ -1,3 +1,4 @@
+use crate::errands::Designation;
 use crate::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -7,7 +8,8 @@ pub struct GizmosPlugin;
 impl Plugin for GizmosPlugin {
     fn build(&self, app: &mut App) {
         app.add_system(display_gizmos.run_if(should_update_gizmo_display))
-            .add_startup_system(spawn_gizmo_tracker);
+            .add_startup_system(spawn_gizmo_tracker)
+            .add_system(handle_gizmo_click);
     }
 }
 
@@ -75,7 +77,7 @@ fn spawn_gizmo_tracker(mut commands: Commands) {
 
 fn display_gizmos(
     q: Query<(&EntityGizmos, Entity), With<Selected>>,
-    mut buttons: Query<(&mut GizmoButton, &mut Style, Entity)>,
+    mut buttons: Query<(&mut GizmoButton, Entity)>,
     mut commands: Commands,
     mut gizmo_nodes: Query<(&mut GizmoTracker, Entity)>,
 ) {
@@ -89,11 +91,11 @@ fn display_gizmos(
         .flat_map(|(gizmos, entity)| gizmos.gizmos.iter().map(move |g| (g, entity)))
         .into_group_map();
 
-    let render_order = gizmos_to_render.iter().sorted_by_key(|(g, _)| g.order());
+    let render_order = gizmos_to_render.iter().sorted_by_key(|(g, _)| g.order);
 
     for (gizmo, entities) in render_order {
-        let found = if let Some(existing) = gizmo_button_tracker.gizmo_buttons.get(gizmo.id()) {
-            if let Ok((ref mut button, ref mut style, _)) = &mut buttons.get_mut(*existing) {
+        let found = if let Some(existing) = gizmo_button_tracker.gizmo_buttons.get(&gizmo.id) {
+            if let Ok((ref mut button, _)) = &mut buttons.get_mut(*existing) {
                 button.entities = entities.clone();
                 true
             } else {
@@ -105,7 +107,7 @@ fn display_gizmos(
 
         if !found {
             let button = GizmoButton {
-                id: gizmo.id().to_string(),
+                id: gizmo.id.to_string(),
                 entities: entities.clone(),
             };
             let entity = commands
@@ -115,60 +117,105 @@ fn display_gizmos(
                             size: Size::new(Val::Px(32.0), Val::Px(32.0)),
                             ..default()
                         },
-                        image: UiImage {
-                            texture: gizmo.icon(),
-                            ..default()
-                        },
+                        background_color: Color::BLACK.into(),
                         ..Default::default()
                     },
                     button,
                 ))
+                .with_children(|parent| {
+                    parent.spawn(ImageBundle {
+                        image: UiImage {
+                            texture: gizmo.icon.clone(),
+                            ..default()
+                        },
+                        ..default()
+                    });
+                })
                 .set_parent(tracker_entity)
                 .id();
 
             gizmo_button_tracker
                 .gizmo_buttons
-                .insert(gizmo.id().to_string(), entity);
+                .insert(gizmo.id.clone(), entity);
         }
     }
 
-    let rendered_gizmo_ids: HashSet<_> = gizmos_to_render.keys().map(|g| g.id()).collect();
+    let rendered_gizmo_ids: HashSet<_> = gizmos_to_render.keys().map(|g| &g.id).collect();
 
-    for (gizmo, _, entity) in buttons.iter() {
-        if !rendered_gizmo_ids.contains(gizmo.id.as_str()) {
+    for (gizmo, entity) in buttons.iter() {
+        if !rendered_gizmo_ids.contains(&gizmo.id) {
             commands.entity(entity).despawn_recursive();
             gizmo_button_tracker.gizmo_buttons.remove(&gizmo.id);
         }
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum GizmoType {
-    AddGlobalTask { gizmo: GizmoInfo },
+#[derive(Debug)]
+pub enum GizmoSelectedAction {
+    SetDesignation(Designation),
 }
 
-impl GizmoType {
-    fn order(&self) -> i32 {
-        match self {
-            GizmoType::AddGlobalTask { gizmo } => gizmo.order,
-        }
-    }
+#[derive(Debug)]
+pub struct GizmoContainer {
+    icon: Handle<Image>,
+    name: String,
+    order: i32,
+    id: String,
+    activate: bool,
+    on_selected: GizmoSelectedAction,
+}
 
-    fn id(&self) -> &str {
-        match self {
-            GizmoType::AddGlobalTask { gizmo } => &gizmo.id,
-        }
+impl PartialEq for GizmoContainer {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
     }
+}
 
-    fn icon(&self) -> Handle<Image> {
-        match self {
-            GizmoType::AddGlobalTask { gizmo } => gizmo.icon.clone(),
+impl Eq for GizmoContainer {}
+
+impl Hash for GizmoContainer {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl GizmoContainer {
+    pub fn new(
+        id: &str,
+        name: &str,
+        order: i32,
+        icon: Handle<Image>,
+        on_selected: GizmoSelectedAction,
+    ) -> Self {
+        Self {
+            on_selected,
+            activate: false,
+            order,
+            id: id.to_string(),
+            name: name.to_string(),
+            icon,
         }
     }
 }
 
 #[derive(Component, Default)]
 pub struct EntityGizmos {
-    pub gizmos: Vec<GizmoType>,
+    pub gizmos: Vec<GizmoContainer>,
 }
 
+fn handle_gizmo_click(
+    buttons: Query<(&GizmoButton, &Interaction), Changed<Interaction>>,
+    mut gizmo_entities: Query<&mut EntityGizmos, With<Selected>>,
+) {
+    for (gizmo, interaction) in buttons.iter() {
+        if *interaction == Interaction::Clicked {
+            for entity in &gizmo.entities {
+                if let Ok(ref mut g) = &mut gizmo_entities.get_mut(*entity) {
+                    if let Some(ref mut g) = &mut g.gizmos.iter_mut().find(|g| g.id == gizmo.id) {
+                        g.activate = true;
+                    }
+                }
+            }
+        }
+    }
+}

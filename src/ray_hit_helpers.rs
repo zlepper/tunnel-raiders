@@ -22,7 +22,9 @@ pub fn get_hit(
     const MAX_TOI: f32 = 400.0;
     const SOLID: bool = true;
 
-    let hit = window
+    
+
+    window
         .and_then(|window| window.cursor_position())
         .and_then(|cursor_position| camera.viewport_to_world(camera_transform, cursor_position))
         .and_then(|ray_cast_source| {
@@ -33,7 +35,5 @@ pub fn get_hit(
                 SOLID,
                 QueryFilter::new().predicate(&can_match),
             )
-        });
-
-    hit
+        })
 }

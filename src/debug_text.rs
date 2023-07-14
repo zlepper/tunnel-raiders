@@ -104,7 +104,7 @@ fn mouse_over_target(target: Res<MouseTargetedEntity>, mut query: Query<&mut Tex
                 }
             }
         } else {
-            text.sections[1].value = format!("None");
+            text.sections[1].value = "None".to_string();
         }
 
     }

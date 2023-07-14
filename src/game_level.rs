@@ -45,7 +45,7 @@ impl GameLevel {
         }
 
         let walled_tiles = &self.walled_tiles;
-        let matched = flood_fill_grid(&walled_tiles, x, z, |x, y| {
+        let matched = flood_fill_grid(walled_tiles, x, z, |x, y| {
             !*walled_tiles.get(x, y).unwrap_or(&true)
         });
 

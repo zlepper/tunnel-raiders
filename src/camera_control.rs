@@ -1,7 +1,6 @@
 use crate::prelude::*;
 use crate::ray_hit_helpers::get_hit;
 use crate::selection::WantToSelect;
-use crate::errands::{Errand, ErrandQueueable};
 use crate::GameState;
 use bevy::window::PrimaryWindow;
 use leafwing_input_manager::action_state::ActionState;
@@ -181,7 +180,7 @@ fn select_things(
             || action_state.just_pressed(ControlAction::SelectAdditional)
         {
             if let Some(target) = &mouse_target.target {
-                if let Ok(_) = selectable.get(target.entity) {
+                if selectable.get(target.entity).is_ok() {
                     info!("Hit {:?} at {:?}", target.entity, target.intersection);
 
                     let append = action_state.just_pressed(ControlAction::SelectAdditional);
@@ -217,31 +216,15 @@ impl InteractedWith {
         }
     }
 
-    pub fn add_interaction_to_queue(&self, mut queue: &mut ErrandQueue, errand: impl ErrandQueueable) {
-        if self.append {
-            errand.add_to_errand_queue(&mut queue);
-        } else {
-            errand.override_errand(&mut queue);
+    pub fn add_interaction_to_queue(&self, queue: &mut ErrandQueue, errand: impl Errand) {
+        if !self.append {
+            queue.clear();
         }
+
+        queue.append_independent_errand(errand);
     }
 }
 
-pub trait InteractedWithMultiHelper<T> {
-    fn add_interaction_to_queue(&self, queue: &mut ErrandQueue, errand: T);
-}
-
-impl<T> InteractedWithMultiHelper<T> for InteractedWith
-where
-    T: Component + Errand,
-{
-    fn add_interaction_to_queue(&self, queue: &mut ErrandQueue, errand: T) {
-        if self.append {
-            queue.add_errand(errand);
-        } else {
-            queue.override_errand(errand);
-        }
-    }
-}
 
 fn interact_with_things(
     q: Query<&ActionState<ControlAction>>,
@@ -254,7 +237,7 @@ fn interact_with_things(
             || action_state.just_pressed(ControlAction::InteractAdditional)
         {
             if let Some(target) = &mouse_target.target {
-                if let Ok(_) = interactable.get(target.entity) {
+                if interactable.get(target.entity).is_ok() {
                     info!("Hit {:?} at {:?}", target.entity, target.intersection);
 
                     let append = action_state.just_pressed(ControlAction::InteractAdditional);
@@ -289,7 +272,7 @@ fn mouse_over_things(
     mut mouse_target: ResMut<MouseTargetedEntity>,
 ) {
     for (transform, camera) in q.iter() {
-        let hit = get_hit(&transform, &camera, &rapier_context, &windows, |e| {
+        let hit = get_hit(transform, camera, &rapier_context, &windows, |e| {
             targetable.contains(e)
         });
 

@@ -67,10 +67,10 @@ fn spawn_map_content(
                 let pos = level.get_position_at(grid_position);
                 let mut wall_entity = None;
                 if let Some((wall_mesh, rotation)) =
-                    get_wall_mesh(&*level, &grid_position, &*my_assets)
+                    get_wall_mesh(&level, &grid_position, &my_assets)
                 {
                     let collider = if let Some(mesh) = mesh_assets.get(&wall_mesh) {
-                        Collider::from_bevy_mesh(&mesh, &default())
+                        Collider::from_bevy_mesh(mesh, &default())
                             .expect("Failed to create collider from mesh")
                     } else {
                         error!("Failed to get mesh {:?}", wall_mesh);

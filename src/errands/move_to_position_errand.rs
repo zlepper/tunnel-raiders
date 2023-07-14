@@ -1,11 +1,9 @@
 use oxidized_navigation::{NavMesh, NavMeshSettings, query::find_path};
 use crate::game_level::GameLevel;
-use crate::has_any_query_matches;
 use crate::prelude::*;
-use crate::errands::Errand;
-use crate::errands::errand_queue::ErrandQueue;
+use crate::errands::{Errand, ErrandQueue, ErrandsV2AppExtensions, WorkingOnErrand};
 
-#[derive(Component)]
+#[derive(Clone, Debug)]
 pub struct MoveToPosition {
     target: Vec3,
     path: Option<PathTracker>,
@@ -23,12 +21,15 @@ impl MoveToPosition {
 }
 
 impl Errand for MoveToPosition {
-    fn name(&self) -> String {
-        format!("Move to position {}, {}", self.target.x, self.target.z)
+    type WorkerComponent = KinematicCharacterController;
+
+    fn get_errand_type_order() -> i32 {
+        0
     }
 }
 
-struct PathTracker {
+#[derive(Clone, Debug)]
+pub struct PathTracker {
     path: Vec<Vec3>,
     next: usize,
 }
@@ -49,27 +50,25 @@ impl PathTracker {
 
 fn execute_move_to_position(
     mut query: Query<(
-        Entity,
-        &mut MoveToPosition,
+        &mut WorkingOnErrand<MoveToPosition>,
         &mut KinematicCharacterController,
         &GlobalTransform,
         &mut Transform,
     )>,
-    mut commands: Commands,
     nav_mesh_settings: Res<NavMeshSettings>,
     nav_mesh: Res<NavMesh>,
     time: Res<Time>,
 ) {
     if let Ok(nav_mesh) = nav_mesh.get().try_read() {
-        for (entity, mut pos, mut controller, global_position, mut transform) in query.iter_mut() {
-            if pos.path.is_none() {
+        for (mut errand, mut controller, global_position, mut transform) in query.iter_mut() {
+            if errand.path.is_none() {
                 let start_pos = global_position.translation();
                 let path = find_path(
                     &nav_mesh,
-                    &*nav_mesh_settings,
+                    &nav_mesh_settings,
                     start_pos,
-                    pos.target,
-                    pos.search_radius,
+                    errand.target,
+                    errand.search_radius,
                     None,
                 );
                 match path {
@@ -82,20 +81,21 @@ fn execute_move_to_position(
 
                         let path = p.iter().map(|p| *p + path_offset).collect();
 
-                        pos.path = Some(PathTracker::new(path));
+                        errand.path = Some(PathTracker::new(path));
                     }
                     Err(e) => {
                         warn!(
                             "Failed to find path from {:?} to {:?}. Skipping errand. Error: {:?}",
-                            start_pos, pos.target, e
+                            start_pos, errand.target, e
                         );
+                        errand.fail();
                         // commands.entity(entity).remove::<MoveToPosition>();
                         continue;
                     }
                 }
             }
 
-            if let Some(ref mut path) = &mut pos.path {
+            if let Some(ref mut path) = &mut errand.path {
                 if let Some(next) = path.next() {
                     let direction = next - global_position.translation();
                     if direction.is_nan() {
@@ -112,27 +112,11 @@ fn execute_move_to_position(
                     let velocity = movement * speed * time.delta_seconds();
                     controller.translation = Some(velocity);
                 } else {
-                    info!("Completed MoveToPosition errand for entity {:?}", entity);
-                    commands.entity(entity).remove::<MoveToPosition>();
+                    info!("Completed MoveToPosition errand");
+                    errand.done();
                 }
             }
         }
-    }
-}
-
-fn warn_about_invalid_move_to_position_target(
-    query: Query<
-        (Entity, Option<&Name>),
-        (With<MoveToPosition>, Without<KinematicCharacterController>),
-    >,
-    mut commands: Commands,
-) {
-    for (entity, name) in query.iter() {
-        let display_name = name
-            .map(|n| n.to_string())
-            .unwrap_or_else(|| format!("{:?}", entity));
-        warn!("Entity {:?} has a MoveToPosition errand, but no KinematicCharacterController. Removing errand.", display_name);
-        commands.entity(entity).remove::<MoveToPosition>();
     }
 }
 
@@ -140,14 +124,8 @@ pub struct MoveToPositionErrandPlugin;
 
 impl Plugin for MoveToPositionErrandPlugin {
     fn build(&self, app: &mut App) {
-        app.register_errand::<MoveToPosition>()
+        app.add_errand::<MoveToPosition>()
             .add_system(execute_move_to_position.run_if(resource_exists::<GameLevel>()))
-            .add_system(warn_about_invalid_move_to_position_target.run_if(
-                has_any_query_matches::<(
-                    With<MoveToPosition>,
-                    Without<KinematicCharacterController>,
-                )>,
-            ))
             .add_system(move_selected_raider_to_target);
     }
 }

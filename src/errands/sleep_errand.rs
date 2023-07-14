@@ -1,26 +1,27 @@
+use crate::errands::WorkingOnErrand;
 use crate::prelude::*;
-use crate::errands::errand_queue::Errand;
 
-#[derive(Component)]
+#[derive(Clone, Debug)]
 pub struct SleepErrand {
     pub duration: f32,
 }
 
 impl Errand for SleepErrand {
-    fn name(&self) -> String {
-        format!("Sleep for {} seconds", self.duration)
+    type WorkerComponent = ErrandQueue;
+
+    fn get_errand_type_order() -> i32 {
+        1000
     }
 }
 
 pub fn execute_sleep_errand(
-    mut query: Query<(Entity, &mut SleepErrand)>,
-    mut commands: Commands,
+    mut query: Query<&mut WorkingOnErrand<SleepErrand>>,
     time: Res<Time>,
 ) {
-    for (entity, mut errand) in query.iter_mut() {
+    for mut errand in query.iter_mut() {
         errand.duration -= time.delta_seconds();
         if errand.duration <= 0.0 {
-            commands.entity(entity).remove::<SleepErrand>();
+            errand.done();
         }
     }
 }
