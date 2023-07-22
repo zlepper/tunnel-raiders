@@ -2,6 +2,7 @@ use crate::errands::Designation;
 use crate::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+use std::mem;
 
 pub struct GizmosPlugin;
 
@@ -63,10 +64,11 @@ fn spawn_gizmo_tracker(mut commands: Commands) {
                 overflow: Overflow::Hidden,
                 position: UiRect {
                     right: Val::Px(20.),
+                    top: Val::Px(20.),
                     left: Val::Auto,
                     ..default()
                 },
-                size: Size::new(Val::Px(50.), Val::Auto),
+                size: Size::new(Val::Px(64.), Val::Auto),
                 position_type: PositionType::Absolute,
                 ..default()
             },
@@ -114,7 +116,10 @@ fn display_gizmos(
                 .spawn((
                     ButtonBundle {
                         style: Style {
-                            size: Size::new(Val::Px(32.0), Val::Px(32.0)),
+                            size: Size::new(Val::Px(64.0), Val::Px(64.0)),
+                            display: Display::Flex,
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
                             ..default()
                         },
                         background_color: Color::BLACK.into(),
@@ -122,16 +127,20 @@ fn display_gizmos(
                     },
                     button,
                 ))
+                .set_parent(tracker_entity)
                 .with_children(|parent| {
                     parent.spawn(ImageBundle {
                         image: UiImage {
                             texture: gizmo.icon.clone(),
                             ..default()
                         },
+                        style: Style {
+                            size: Size::all(Val::Px(64.)),
+                            ..default()
+                        },
                         ..default()
                     });
                 })
-                .set_parent(tracker_entity)
                 .id();
 
             gizmo_button_tracker
@@ -150,19 +159,20 @@ fn display_gizmos(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum GizmoSelectedAction {
+    #[default]
+    NoAction,
     SetDesignation(Designation),
 }
 
 #[derive(Debug)]
 pub struct GizmoContainer {
-    icon: Handle<Image>,
-    name: String,
-    order: i32,
-    id: String,
-    activate: bool,
-    on_selected: GizmoSelectedAction,
+    pub icon: Handle<Image>,
+    pub name: String,
+    pub order: i32,
+    pub id: String,
+    pub on_selected: GizmoSelectedAction,
 }
 
 impl PartialEq for GizmoContainer {
@@ -189,7 +199,6 @@ impl GizmoContainer {
     ) -> Self {
         Self {
             on_selected,
-            activate: false,
             order,
             id: id.to_string(),
             name: name.to_string(),
@@ -206,13 +215,24 @@ pub struct EntityGizmos {
 fn handle_gizmo_click(
     buttons: Query<(&GizmoButton, &Interaction), Changed<Interaction>>,
     mut gizmo_entities: Query<&mut EntityGizmos, With<Selected>>,
+    mut commands: Commands
 ) {
     for (gizmo, interaction) in buttons.iter() {
         if *interaction == Interaction::Clicked {
             for entity in &gizmo.entities {
                 if let Ok(ref mut g) = &mut gizmo_entities.get_mut(*entity) {
                     if let Some(ref mut g) = &mut g.gizmos.iter_mut().find(|g| g.id == gizmo.id) {
-                        g.activate = true;
+                        let action = mem::take(&mut g.on_selected);
+
+                        match action {
+                            GizmoSelectedAction::NoAction => {
+                                info!("Gizmo has no action");
+                            }
+                            GizmoSelectedAction::SetDesignation(designation) => {
+                                info!("Adding designation: {:?}", designation);
+                                commands.entity(*entity).insert(designation);
+                            }
+                        }
                     }
                 }
             }

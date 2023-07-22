@@ -15,7 +15,7 @@ use crate::debug_text::DebugTextPlugin;
 use crate::game_level::{GameLevel};
 use crate::prelude::*;
 use crate::selection::SelectionPlugin;
-use crate::errands::{Miner, PlayerMovable, ErrandsPlugin};
+use crate::errands::{Miner, PlayerMovable, ErrandsPlugin, WorkerPriority, WorkerPriorities};
 use bevy::window::ExitCondition;
 use bevy::DefaultPlugins;
 use bevy_ecs::query::ReadOnlyWorldQuery;
@@ -140,22 +140,26 @@ fn spawn_world(
 
     commands.insert_resource(level);
 
-    commands.spawn((
-        SceneBundle {
-            scene: my_assets.raider.clone(),
-            transform: Transform::from_xyz(15.0, 3.2, 15.0),
-            ..default()
-        },
-        Collider::cuboid(0.6, 3., 0.4),
-        Name::new("Raider".to_string()),
-        RigidBody::KinematicVelocityBased,
-        LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z,
-        ErrandQueue::new(),
-        KinematicCharacterController::default(),
-        Selectable::default(),
-        PlayerMovable,
-        Miner,
-    ));
+
+    for i in 0..2 {
+        commands.spawn((
+            SceneBundle {
+                scene: my_assets.raider.clone(),
+                transform: Transform::from_xyz(15.0, 3.2, 15.0 + i as f32 * 10.),
+                ..default()
+            },
+            Collider::cuboid(0.6, 3., 0.4),
+            Name::new(format!("Raider{i}")),
+            RigidBody::KinematicVelocityBased,
+            LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z,
+            ErrandQueue::new(),
+            KinematicCharacterController::default(),
+            Selectable::default(),
+            PlayerMovable,
+            Miner,
+            WorkerPriorities::default(),
+        ));
+    }
 
     // light
     commands.spawn(DirectionalLightBundle {

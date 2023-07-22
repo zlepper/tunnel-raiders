@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_ecs::system::EntityCommands;
 use itertools::Itertools;
-use std::any::{TypeId};
+use std::any::TypeId;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
@@ -37,6 +37,8 @@ impl ErrandQueue {
         self.next_id += 1;
 
         let queued_errand = create(id);
+
+        info!("Appending errand");
 
         self.errands.push_back(Box::new(queued_errand));
     }
@@ -305,18 +307,29 @@ impl Designation {
     fn errand_type_id(&self) -> TypeId {
         self.errand.errand_type_id()
     }
+
+    pub fn is_errand<E: Errand>(&self) -> bool {
+        self.errand_type_id() == TypeId::of::<E>()
+    }
 }
 
 #[derive(Component)]
 struct IsWorking;
 
 fn clear_finished_errands<T: Errand>(
-    q: Query<(Entity, &WorkingOnErrand<T>)>,
+    mut q: Query<(Entity, &WorkingOnErrand<T>, &mut ErrandQueue)>,
     mut commands: Commands,
 ) {
-    for (entity, working_on_errand) in q.iter() {
+    for (entity, working_on_errand, mut queue) in q.iter_mut() {
         if working_on_errand.is_done {
+            info!("Errand {:?} done", working_on_errand.id);
             commands.entity(entity).remove::<WorkingOnErrand<T>>();
+            let first = queue.errands.front();
+            if let Some(first) = first {
+                if first.id() == working_on_errand.id {
+                    queue.errands.pop_front();
+                }
+            }
         }
     }
 }
@@ -326,13 +339,28 @@ fn check_failed_errands(mut q: Query<&mut ErrandQueue>, errand_targets: Query<()
         queue.errands.retain(|e| {
             for failure_condition in e.fail_on() {
                 let retain = match failure_condition {
-                    FailureCondition::TargetRemoved(target) => !errand_targets.contains(*target),
+                    FailureCondition::TargetRemoved(target) =>{
+                        if !errand_targets.contains(*target) {
+                            info!("Errand target removed");
+                            false
+                        } else {
+                            true
+                        }
+
+
+                    },
                     FailureCondition::TargetErrandCancelled(cancelled) => {
-                        !cancelled.load(Ordering::Relaxed)
+                        if cancelled.load(Ordering::Relaxed) {
+                            info!("Errand explicitly cancelled");
+                            false
+                        } else {
+                            true
+                        }
                     }
                 };
 
                 if !retain {
+                    info!("Errand {:?} failed", e.id());
                     return false;
                 }
             }
@@ -351,9 +379,11 @@ fn cancel_current_task_when_overwritten<T: Errand>(
 
         if let Some(first) = first {
             if first.id() != errand.id {
+                info!("Errand {:?} overwritten, removing", errand.id);
                 commands.entity(entity).remove::<WorkingOnErrand<T>>();
             }
         } else {
+            info!("Working on errand but queue is empty");
             commands.entity(entity).remove::<WorkingOnErrand<T>>();
         }
     }
@@ -374,6 +404,7 @@ fn start_next_task<T: Errand>(
 
             let mut entity_commands = commands.entity(entity);
             if let Some(first) = first {
+                info!("Activating next errand");
                 first.activate(&mut entity_commands);
                 entity_commands.insert(IsWorking);
             } else {
@@ -394,8 +425,9 @@ fn start_next_errand_in_queue(
     for (entity, queue) in workers.iter() {
         let first = queue.errands.front();
 
-        let mut entity_commands = commands.entity(entity);
         if let Some(first) = first {
+            info!("Starting next errand in queue");
+            let mut entity_commands = commands.entity(entity);
             first.activate(&mut entity_commands);
             entity_commands.insert(IsWorking);
         }
@@ -461,13 +493,6 @@ fn has_removed<C: Component>(q: RemovedComponents<C>) -> bool {
     !q.is_empty()
 }
 
-#[derive(Debug, Copy, Clone)]
-struct ErrandInfo {
-    id: TypeId,
-    order: i32,
-    name: &'static str,
-}
-
 fn assign_available_errands(
     designations: Query<(&Designation, &GlobalTransform)>,
     mut workers: Query<
@@ -517,13 +542,11 @@ fn assign_available_errands(
                         return;
                     }
                 }
-
-                info!("Could not find errand for worker {:?}", entity);
             }
         })
 }
 
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct WorkerPriorities {
     priorities: Vec<WorkerPriority>,
 }

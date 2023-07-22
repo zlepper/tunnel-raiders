@@ -5,6 +5,7 @@ use crate::errands::{Minable, Standable};
 use crate::{GameState, MyAssets};
 use oxidized_navigation::NavMeshAffector;
 use std::collections::HashMap;
+use std::process::id;
 use crate::gizmos::EntityGizmos;
 
 pub struct GameLevelRenderPlugin;
@@ -77,7 +78,7 @@ fn spawn_map_content(
                         Collider::cuboid(5., 5., 5.)
                     };
 
-                    let id = commands
+                    let mut wall_builder = commands
                         .spawn((
                             PbrBundle {
                                 transform: Transform::from_xyz(pos.x, HALF_TILE_SIZE, pos.z)
@@ -88,19 +89,24 @@ fn spawn_map_content(
                             },
                             collider,
                             RigidBody::Fixed,
-                            Selectable::default(),
                             Name::new(format!("Wall {} {}", pos.x, pos.z)),
-                            PlayerInteractable,
                             NavMeshAffector,
+                        ));
+
+                    if level.within(x, z) {
+                        wall_builder.insert((
+                            EntityGizmos::default(),
+                            PlayerInteractable,
+                            Selectable::default(),
                             Minable {
                                 max_health: 5.,
                                 remaining_health: 5.,
                             },
-                            EntityGizmos::default(),
-                        ))
-                        .id();
+                        ));
+                    }
 
-                    wall_entity = Some(id)
+
+                    wall_entity = Some(wall_builder.id())
                 }
 
                 let mut floor = commands.spawn((

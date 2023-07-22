@@ -179,6 +179,7 @@ fn select_things(
         if action_state.just_pressed(ControlAction::Select)
             || action_state.just_pressed(ControlAction::SelectAdditional)
         {
+            info!("Selecting");
             if let Some(target) = &mouse_target.target {
                 if selectable.get(target.entity).is_ok() {
                     info!("Hit {:?} at {:?}", target.entity, target.intersection);
@@ -270,7 +271,14 @@ fn mouse_over_things(
     windows: Query<&Window>,
     targetable: Query<(), Or<(With<PlayerInteractable>, With<Selectable>)>>,
     mut mouse_target: ResMut<MouseTargetedEntity>,
+    ui_buttons: Query<&Interaction>,
 ) {
+    if ui_buttons.iter().any(|i| *i != Interaction::None) {
+        mouse_target.target = None;
+        return;
+    }
+
+
     for (transform, camera) in q.iter() {
         let hit = get_hit(transform, camera, &rapier_context, &windows, |e| {
             targetable.contains(e)

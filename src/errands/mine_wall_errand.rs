@@ -1,3 +1,4 @@
+use bevy::utils::petgraph::visit::Walker;
 use crate::errands::{Designation, ErrandsV2AppExtensions, MoveToPosition, QueuedErrand, QueuedErrandFailureBuilder, QueuedErrandImpl, WorkingOnErrand};
 use crate::game_level::TILE_SIZE;
 use crate::gizmos::{EntityGizmos, GizmoContainer, GizmoSelectedAction};
@@ -107,18 +108,38 @@ fn start_mining_wall(
 }
 
 fn maintain_mine_gizmo(
-    mut q: Query<(Entity, &mut EntityGizmos), (With<Selected>, With<Minable>)>,
+    mut q: Query<(Entity, &mut EntityGizmos, Option<&Designation>), (With<Selected>, With<Minable>)>,
     my_assets: Res<MyAssets>,
 ) {
-    for (entity, mut gizmos) in q.iter_mut() {
-        if gizmos.gizmos.is_empty() {
-            gizmos.gizmos.push(GizmoContainer::new(
-                "mine",
-                "Mine",
-                0,
-                my_assets.mine_wall_icon.clone(),
-                GizmoSelectedAction::SetDesignation(Designation::new(entity, MineWallErrand::new(entity))),
-            ));
+    for (entity, mut gizmos, designation) in q.iter_mut() {
+
+        let has_mining_designation = designation.is_some_and(|d| d.is_errand::<MineWallErrand>());
+
+        let existing_mine_gizmo = gizmos.gizmos.iter_mut().position(|g| g.id == "mine");
+
+        match (existing_mine_gizmo, has_mining_designation) {
+            (Some(existing_index), true) => {
+                gizmos.gizmos.remove(existing_index);
+            },
+            (Some(existing_index), false) => {
+                let gizmo = &mut gizmos.gizmos[existing_index];
+                match gizmo.on_selected {
+                    GizmoSelectedAction::NoAction => {
+                        gizmo.on_selected = GizmoSelectedAction::SetDesignation(Designation::new(entity, MineWallErrand::new(entity)));
+                    }
+                    GizmoSelectedAction::SetDesignation(_) => {}
+                }
+            },
+            (None, false) => {
+                gizmos.gizmos.push(GizmoContainer::new(
+                    "mine",
+                    "Mine",
+                    0,
+                    my_assets.mine_wall_icon.clone(),
+                    GizmoSelectedAction::SetDesignation(Designation::new(entity, MineWallErrand::new(entity))),
+                ));
+            },
+            _ => {}
         }
     }
 }
