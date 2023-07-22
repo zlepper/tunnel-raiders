@@ -1,4 +1,3 @@
-use bevy::utils::petgraph::visit::Walker;
 use crate::errands::{Designation, ErrandsV2AppExtensions, MoveToPosition, QueuedErrand, QueuedErrandFailureBuilder, QueuedErrandImpl, WorkingOnErrand};
 use crate::game_level::TILE_SIZE;
 use crate::gizmos::{EntityGizmos, GizmoContainer, GizmoSelectedAction};

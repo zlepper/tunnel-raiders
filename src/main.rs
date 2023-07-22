@@ -15,7 +15,7 @@ use crate::debug_text::DebugTextPlugin;
 use crate::game_level::{GameLevel};
 use crate::prelude::*;
 use crate::selection::SelectionPlugin;
-use crate::errands::{Miner, PlayerMovable, ErrandsPlugin, WorkerPriority, WorkerPriorities};
+use crate::errands::{Miner, PlayerMovable, ErrandsPlugin, WorkerPriorities};
 use bevy::window::ExitCondition;
 use bevy::DefaultPlugins;
 use bevy_ecs::query::ReadOnlyWorldQuery;

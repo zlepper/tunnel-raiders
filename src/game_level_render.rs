@@ -86,7 +86,6 @@ struct WorldTileTracker {
 
 struct WorldTile {
     wall_entity: Option<Entity>,
-    floor_entity: Entity,
 }
 
 #[derive(Component)]
@@ -191,7 +190,6 @@ fn spawn_map_content(
                     world_tile_position,
                     WorldTile {
                         wall_entity,
-                        floor_entity: floor.id(),
                     },
                 );
             }
