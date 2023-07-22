@@ -39,31 +39,50 @@ impl GameLevel {
         self.open_tiles.set(x, z, true);
 
         let mut queue = VecDeque::new();
-        queue.push_back((x + 1, z));
-        queue.push_back((x - 1, z));
-        queue.push_back((x, z + 1));
-        queue.push_back((x, z - 1));
+        queue.push_back((x, z));
 
         while let Some((x, z)) = queue.pop_back() {
-            if self.is_open(x, z) {
-                continue;
+            {
+                let has_wall_behind = *self.walled_tiles.get(x + 2, z).unwrap_or(&true);
+                let has_wall = *self.walled_tiles.get(x + 1, z).unwrap_or(&true);
+
+                if has_wall && !has_wall_behind {
+                    self.walled_tiles.set(x + 1, z, false);
+                    self.open_tiles.set(x + 1, z, true);
+                    queue.push_back((x + 1, z));
+                }
             }
 
-            let neighbors = [(x + 1, z), (x - 1, z), (x, z + 1), (x, z - 1)];
+            {
+                let has_wall_behind = *self.walled_tiles.get(x - 2, z).unwrap_or(&true);
+                let has_wall = *self.walled_tiles.get(x - 1, z).unwrap_or(&true);
 
-            let walled_neighbor_count = neighbors
-                .iter()
-                .filter(|(x, z)| {
-                    !self.within(*x, *z) || *self.walled_tiles.get(*x, *z).unwrap_or(&true)
-                })
-                .count();
+                if has_wall && !has_wall_behind {
+                    self.walled_tiles.set(x - 1, z, false);
+                    self.open_tiles.set(x - 1, z, true);
+                    queue.push_back((x - 1, z));
+                }
+            }
 
-            if walled_neighbor_count < 2 {
-                self.walled_tiles.set(x, z, false);
-                self.open_tiles.set(x, z, true);
+            {
+                let has_wall_behind = *self.walled_tiles.get(x, z + 2).unwrap_or(&true);
+                let has_wall = *self.walled_tiles.get(x, z + 1).unwrap_or(&true);
 
-                for (x, z) in neighbors.iter() {
-                    queue.push_back((*x, *z));
+                if has_wall && !has_wall_behind {
+                    self.walled_tiles.set(x, z + 1, false);
+                    self.open_tiles.set(x, z + 1, true);
+                    queue.push_back((x, z + 1));
+                }
+            }
+
+            {
+                let has_wall_behind = *self.walled_tiles.get(x, z - 2).unwrap_or(&true);
+                let has_wall = *self.walled_tiles.get(x, z - 1).unwrap_or(&true);
+
+                if has_wall && !has_wall_behind {
+                    self.walled_tiles.set(x, z - 1, false);
+                    self.open_tiles.set(x, z - 1, true);
+                    queue.push_back((x, z - 1));
                 }
             }
         }
@@ -300,31 +319,30 @@ mod tests {
             5,
             5,
             vec![
-                true, true, true, true, true,
-                true, false, false, false, true,
-                true, false, false, false, true,
-                true, false, false, true, true,
-                true, true, true, true, true,
+                false, false, false, false, false,
+                false, true, true, true, false,
+                false, false, false, false, false,
+                false, false, false, false, false,
+                false, true, true, true, false,
             ],
         ));
 
-        level.remove_wall(1, 1);
+        level.remove_wall(2, 2);
 
         let expected = GameLevel::new_from_open_tiles(Grid::new_from_list(
             5,
             5,
             vec![
-                true, true, true, true, true,
-                true, true, true, true, true,
-                true, true, true, true, true,
-                true, true, true, true, true,
-                true, true, true, true, true,
+                false, false, false, false, false,
+                false, true, true, true, false,
+                false, false, true, false, false,
+                false, false, true, false, false,
+                false, true, true, true, false,
             ],
         ));
 
         assert_eq!(level, expected);
     }
-
 
     #[test]
     fn walls_with_only_1_neighbor_at_border() {

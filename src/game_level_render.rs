@@ -318,21 +318,37 @@ fn get_wall_mesh(
             let north_west_open = level.is_open(position.x - 1, position.z + 1);
             let south_west_open = level.is_open(position.x - 1, position.z - 1);
             if north_east_open || south_east_open || north_west_open || south_west_open {
-                let mesh = my_assets.inner_corner_wall_mesh.clone();
 
-                let rotation: f32 = match (
-                    north_east_open,
-                    south_east_open,
-                    north_west_open,
-                    south_west_open,
-                ) {
-                    (true, false, false, false) => 180.,
-                    (false, true, false, false) => 270.,
-                    (false, false, true, false) => 90.,
-                    _ => 0.,
-                };
 
-                Some((mesh, Quat::from_rotation_y(rotation.to_radians())))
+                if north_east_open && south_west_open {
+
+                    let mesh = my_assets.inner_diagonal_wall_mesh.clone();
+
+                    Some((mesh, Quat::from_rotation_y(0.0f32.to_radians())))
+
+                } else if north_west_open && south_east_open {
+
+                    let mesh = my_assets.inner_diagonal_wall_mesh.clone();
+
+                    return Some((mesh, Quat::from_rotation_y(90.0f32.to_radians())));
+
+                } else {
+                    let mesh = my_assets.inner_corner_wall_mesh.clone();
+
+                    let rotation: f32 = match (
+                        north_east_open,
+                        south_east_open,
+                        north_west_open,
+                        south_west_open,
+                    ) {
+                        (true, false, false, false) => 180.,
+                        (false, true, false, false) => 270.,
+                        (false, false, true, false) => 90.,
+                        _ => 0.,
+                    };
+
+                    Some((mesh, Quat::from_rotation_y(rotation.to_radians())))
+                }
             } else {
                 let mesh = my_assets.full_wall_mesh.clone();
                 Some((mesh, Quat::default()))

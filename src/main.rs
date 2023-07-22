@@ -109,6 +109,9 @@ struct MyAssets {
     #[asset(path = "wall.gltf#Mesh7/Primitive0")]
     pub inner_corner_wall_mesh: Handle<Mesh>,
 
+    #[asset(path = "wall.gltf#Mesh8/Primitive0")]
+    pub inner_diagonal_wall_mesh: Handle<Mesh>,
+
     #[asset(path = "wall.gltf#Material0")]
     pub wall_material: Handle<StandardMaterial>,
 
