@@ -1,10 +1,31 @@
-use std::fmt::Formatter;
+use std::fmt::{Debug, Formatter};
+use prettytable::{Row, Table, Cell};
 
-#[derive(Eq, PartialEq, Debug, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct Grid<T> {
     items: Vec<T>,
     height: i32,
     width: i32,
+}
+
+impl<T> Debug for Grid<T> where T: Debug {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+
+        let mut table = Table::new();
+
+        for z in 0..self.height {
+            let mut row = Row::default();
+            for x in 0..self.width {
+                let value = self.get(x, z).unwrap();
+                row.add_cell(Cell::new(&format!("{:?}", value)))
+            }
+            table.add_row(row);
+        }
+
+        let t = table.to_string();
+        f.write_str("\n")?;
+        f.write_str(&t)
+    }
 }
 
 impl<T> Grid<T> {
@@ -24,18 +45,25 @@ impl<T> Grid<T> {
         self.items.get((x + z * self.width) as usize)
     }
 
+    fn get_index(&self, x: i32, z: i32) -> usize {
+        (x + z * self.width) as usize
+    }
+
     pub fn get_mut(&mut self, x: i32, z: i32) -> Option<&mut T> {
         if !self.is_within(x, z) {
             return None;
         }
 
-        self.items.get_mut((x + z * self.width) as usize)
+        let idx = self.get_index(x, z);
+        self.items.get_mut(idx)
     }
 
     pub fn set(&mut self, x: i32, z: i32, value: T) {
         assert!(x < self.width);
         assert!(z < self.height);
-        self.items[(x + z * self.width) as usize] = value;
+
+        let idx = self.get_index(x, z);
+        self.items[idx] = value;
     }
 
     pub fn map<S: Default>(&self, operate: impl Fn(&T) -> S) -> Grid<S> {
@@ -48,7 +76,7 @@ impl<T> Grid<T> {
         x >= 0 && x < self.width && z >= 0 && z < self.height
     }
 
-    fn new_from_list(width: i32, height: i32, items: Vec<T>) -> Self {
+    pub fn new_from_list(width: i32, height: i32, items: Vec<T>) -> Self {
         assert_eq!(width * height, items.len() as i32);
         Self {
             items,

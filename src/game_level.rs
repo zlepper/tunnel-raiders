@@ -1,5 +1,6 @@
 use crate::grid::{flood_fill_grid, Grid, GridPosition};
 use crate::prelude::*;
+use std::collections::VecDeque;
 
 #[derive(Resource, Eq, PartialEq, Debug)]
 pub struct GameLevel {
@@ -36,6 +37,37 @@ impl GameLevel {
     pub fn remove_wall(&mut self, x: i32, z: i32) {
         self.walled_tiles.set(x, z, false);
         self.open_tiles.set(x, z, true);
+
+        let mut queue = VecDeque::new();
+        queue.push_back((x + 1, z));
+        queue.push_back((x - 1, z));
+        queue.push_back((x, z + 1));
+        queue.push_back((x, z - 1));
+
+        while let Some((x, z)) = queue.pop_back() {
+            if self.is_open(x, z) {
+                continue;
+            }
+
+            let neighbors = [(x + 1, z), (x - 1, z), (x, z + 1), (x, z - 1)];
+
+            let walled_neighbor_count = neighbors
+                .iter()
+                .filter(|(x, z)| {
+                    !self.within(*x, *z) || *self.walled_tiles.get(*x, *z).unwrap_or(&true)
+                })
+                .count();
+
+            if walled_neighbor_count < 2 {
+                self.walled_tiles.set(x, z, false);
+                self.open_tiles.set(x, z, true);
+
+                for (x, z) in neighbors.iter() {
+                    queue.push_back((*x, *z));
+                }
+            }
+        }
+
         self.expand_open_tiles(x, z);
     }
 
@@ -69,7 +101,6 @@ impl GameLevel {
         GridPosition { x, z }
     }
 
-
     pub fn get_position_at(&self, pos: GridPosition) -> Vec3 {
         let x = pos.x as f32 * TILE_SIZE + HALF_TILE_SIZE;
         let z = pos.z as f32 * TILE_SIZE + HALF_TILE_SIZE;
@@ -83,8 +114,8 @@ impl GameLevel {
 
 #[cfg(test)]
 mod tests {
-    use crate::grid::GridPosition;
     use super::*;
+    use crate::grid::GridPosition;
 
     #[test]
     fn generates_wall_with_hole_in_middle() {
@@ -94,11 +125,7 @@ mod tests {
         let expected = GameLevel::new_from_open_tiles(Grid::new_from_list(
             3,
             3,
-            vec![
-                false, false, false,
-                false, true, false,
-                false, false, false
-            ],
+            vec![false, false, false, false, true, false, false, false, false],
         ));
 
         assert_eq!(level, expected);
@@ -112,11 +139,7 @@ mod tests {
         let expected = GameLevel::new_from_open_tiles(Grid::new_from_list(
             3,
             3,
-            vec![
-                true, false, false,
-                false, false, false,
-                false, false, false
-            ],
+            vec![true, false, false, false, false, false, false, false, false],
         ));
 
         assert_eq!(level, expected);
@@ -130,11 +153,7 @@ mod tests {
         let expected = GameLevel::new_from_open_tiles(Grid::new_from_list(
             3,
             3,
-            vec![
-                false, false, false,
-                false, false, false,
-                true, false, false
-            ],
+            vec![false, false, false, false, false, false, true, false, false],
         ));
 
         assert_eq!(level, expected);
@@ -148,11 +167,7 @@ mod tests {
         let expected = GameLevel::new_from_open_tiles(Grid::new_from_list(
             3,
             3,
-            vec![
-                false, false, false,
-                false, false, false,
-                false, false, true
-            ],
+            vec![false, false, false, false, false, false, false, false, true],
         ));
 
         assert_eq!(level, expected);
@@ -166,11 +181,7 @@ mod tests {
         let expected = GameLevel::new_from_open_tiles(Grid::new_from_list(
             3,
             3,
-            vec![
-                false, false, true,
-                false, false, false,
-                false, false, false
-            ],
+            vec![false, false, true, false, false, false, false, false, false],
         ));
 
         assert_eq!(level, expected);
@@ -179,50 +190,245 @@ mod tests {
     #[test]
     fn expands_open_tiles() {
         let mut level = GameLevel {
-            open_tiles: Grid {
-                items: vec![false, false, false, true, false, false, false, false, false],
-                height: 3,
-                width: 3,
-            },
-            walled_tiles: Grid {
-                items: vec![true, true, false, false, true, false, true, true, false],
-                height: 3,
-                width: 3,
-            },
+            open_tiles: Grid::new_from_list(
+                3,
+                3,
+                vec![false, false, false, true, false, false, false, false, false],
+            ),
+            walled_tiles: Grid::new_from_list(
+                3,
+                3,
+                vec![true, true, false, false, true, false, true, true, false],
+            ),
         };
         level.remove_wall(1, 1);
 
         let expected = GameLevel {
-            open_tiles: Grid {
-                items: vec![false, false, true, true, true, true, false, false, true],
-                height: 3,
-                width: 3,
-            },
-            walled_tiles: Grid {
-                items: vec![true, true, false, false, false, false, true, true, false],
-                height: 3,
-                width: 3,
-            },
+            open_tiles: Grid::new_from_list(
+                3,
+                3,
+                vec![false, false, true, true, true, true, false, false, true],
+            ),
+            walled_tiles: Grid::new_from_list(
+                3,
+                3,
+                vec![true, true, false, false, false, false, true, true, false],
+            ),
         };
 
         assert_eq!(level, expected);
     }
 
     #[test]
+    fn walls_with_only_1_neighbor_is_also_removed() {
+        let mut level = GameLevel::new_from_open_tiles(Grid::new_from_list(
+            5,
+            5,
+            vec![
+                true, true, true, true, true, true, true, false, false, true, true, true, false,
+                false, true, true, true, true, true, true, true, true, true, true, true,
+            ],
+        ));
+
+        level.remove_wall(2, 2);
+
+        let expected = GameLevel::new_from_open_tiles(Grid::new_from_list(
+            5,
+            5,
+            vec![
+                true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+                true, true, true, true, true, true, true, true, true, true, true,
+            ],
+        ));
+
+        assert_eq!(level, expected);
+    }
+
+    #[test]
+    fn walls_with_only_1_neighbor_is_also_removed_2() {
+        let mut level = GameLevel::new_from_open_tiles(Grid::new_from_list(
+            5,
+            5,
+            vec![
+                true, true, true, true, true, true, false, false, false, true, true, false, false,
+                false, true, true, true, true, true, true, true, true, true, true, true,
+            ],
+        ));
+
+        level.remove_wall(2, 2);
+
+        let expected = GameLevel::new_from_open_tiles(Grid::new_from_list(
+            5,
+            5,
+            vec![
+                true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+                true, true, true, true, true, true, true, true, true, true, true,
+            ],
+        ));
+
+        assert_eq!(level, expected);
+    }
+
+    #[test]
+    fn walls_with_only_1_neighbor_is_also_removed_3() {
+        let mut level = GameLevel::new_from_open_tiles(Grid::new_from_list(
+            5,
+            5,
+            vec![
+                true, true, true, true, true, true, false, false, false, true, true, false, false,
+                false, true, true, true, true, true, true, true, true, true, true, true,
+            ],
+        ));
+
+        level.remove_wall(1, 2);
+
+        let expected = GameLevel::new_from_open_tiles(Grid::new_from_list(
+            5,
+            5,
+            vec![
+                true, true, true, true, true, true, true, false, false, true, true, true, false,
+                false, true, true, true, true, true, true, true, true, true, true, true,
+            ],
+        ));
+
+        assert_eq!(level, expected);
+    }
+
+    #[test]
+    fn walls_with_only_1_neighbor_is_also_removed_4() {
+        let mut level = GameLevel::new_from_open_tiles(Grid::new_from_list(
+            5,
+            5,
+            vec![
+                true, true, true, true, true,
+                true, false, false, false, true,
+                true, false, false, false, true,
+                true, false, false, true, true,
+                true, true, true, true, true,
+            ],
+        ));
+
+        level.remove_wall(1, 1);
+
+        let expected = GameLevel::new_from_open_tiles(Grid::new_from_list(
+            5,
+            5,
+            vec![
+                true, true, true, true, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+            ],
+        ));
+
+        assert_eq!(level, expected);
+    }
+
+
+    #[test]
+    fn walls_with_only_1_neighbor_at_border() {
+        let mut level = GameLevel::new_from_open_tiles(Grid::new_from_list(
+            5,
+            5,
+            vec![
+                true, false, false, false, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+            ],
+        ));
+
+        level.remove_wall(1, 0);
+
+        let expected = GameLevel::new_from_open_tiles(Grid::new_from_list(
+            5,
+            5,
+            vec![
+                true, true, false, false, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+            ],
+        ));
+
+        assert_eq!(level, expected);
+    }
+
+    #[test]
+    fn walls_with_only_1_neighbor_at_border_2() {
+        let mut level = GameLevel::new_from_open_tiles(Grid::new_from_list(
+            5,
+            5,
+            vec![
+                true, false, false, false, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+            ],
+        ));
+
+        level.remove_wall(2, 0);
+
+        let expected = GameLevel::new_from_open_tiles(Grid::new_from_list(
+            5,
+            5,
+            vec![
+                true, true, true, true, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+                true, true, true, true, true,
+            ],
+        ));
+
+        assert_eq!(level, expected);
+    }
+
+
+    #[test]
     fn test_tile_positions() {
         let level = GameLevel::new(10, 10);
 
+        assert_eq!(
+            level.get_position_at(GridPosition::new(0, 0)),
+            Vec3::new(5.0, 0.0, 5.0)
+        );
+        assert_eq!(
+            level.get_position_at(GridPosition::new(1, 1)),
+            Vec3::new(15.0, 0.0, 15.0)
+        );
 
-        assert_eq!(level.get_position_at(GridPosition::new(0, 0)), Vec3::new(5.0, 0.0, 5.0));
-        assert_eq!(level.get_position_at(GridPosition::new(1, 1)), Vec3::new(15.0, 0.0, 15.0));
-
-
-        assert_eq!(level.get_tile_at(Vec3::new(5.0, 0.0, 5.0)), GridPosition::new(0, 0));
-        assert_eq!(level.get_tile_at(Vec3::new(1.0, 0.0, 1.0)), GridPosition::new(0, 0));
-        assert_eq!(level.get_tile_at(Vec3::new(9.0, 0.0, 9.0)), GridPosition::new(0, 0));
-        assert_eq!(level.get_tile_at(Vec3::new(9.0, 0.0, 1.0)), GridPosition::new(0, 0));
-        assert_eq!(level.get_tile_at(Vec3::new(1.0, 0.0, 9.0)), GridPosition::new(0, 0));
-        assert_eq!(level.get_tile_at(Vec3::new(11.0, 0.0, 11.0)), GridPosition::new(1, 1));
-        assert_eq!(level.get_tile_at(Vec3::new(19.0, 0.0, 19.0)), GridPosition::new(1, 1));
+        assert_eq!(
+            level.get_tile_at(Vec3::new(5.0, 0.0, 5.0)),
+            GridPosition::new(0, 0)
+        );
+        assert_eq!(
+            level.get_tile_at(Vec3::new(1.0, 0.0, 1.0)),
+            GridPosition::new(0, 0)
+        );
+        assert_eq!(
+            level.get_tile_at(Vec3::new(9.0, 0.0, 9.0)),
+            GridPosition::new(0, 0)
+        );
+        assert_eq!(
+            level.get_tile_at(Vec3::new(9.0, 0.0, 1.0)),
+            GridPosition::new(0, 0)
+        );
+        assert_eq!(
+            level.get_tile_at(Vec3::new(1.0, 0.0, 9.0)),
+            GridPosition::new(0, 0)
+        );
+        assert_eq!(
+            level.get_tile_at(Vec3::new(11.0, 0.0, 11.0)),
+            GridPosition::new(1, 1)
+        );
+        assert_eq!(
+            level.get_tile_at(Vec3::new(19.0, 0.0, 19.0)),
+            GridPosition::new(1, 1)
+        );
     }
 }
