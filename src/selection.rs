@@ -1,3 +1,4 @@
+use bevy::pbr::{NotShadowCaster, NotShadowReceiver};
 use crate::prelude::*;
 use bevy::prelude::shape::Torus;
 use bevy::render::primitives::Aabb;
@@ -119,6 +120,8 @@ fn highlight_selected(
                     transform: Transform::from_translation(selectable.selection_ring_offset),
                     ..default()
                 },
+                NotShadowCaster,
+                NotShadowReceiver,
             ));
         });
     }
