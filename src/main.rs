@@ -22,6 +22,7 @@ use bevy_ecs::query::ReadOnlyWorldQuery;
 use std::f32::consts::PI;
 use std::time::Duration;
 use bevy::asset::ChangeWatcher;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy_prototype_debug_lines::DebugLinesPlugin;
 use oxidized_navigation::{NavMeshSettings, OxidizedNavigationPlugin};
 use crate::game_level_render::GameLevelRenderPlugin;
@@ -75,7 +76,6 @@ fn main() {
         )
         .add_collection_to_loading_state::<_, MyAssets>(GameState::Loading)
         .add_systems(OnEnter(GameState::Playing), spawn_world)
-        .add_systems(Update, rotate_things)
         .run();
 }
 
@@ -112,23 +112,19 @@ struct MyAssets {
 fn spawn_world(
     mut commands: Commands,
     my_assets: Res<MyAssets>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
 ) {
     let mut level = GameLevel::new(10, 10);
 
-    // for x in 1..=9 {
-    //     level.remove_wall(x, 1);
-    //     level.remove_wall(x, 9);
-    // }
-    //
-    // for z in 1..=9 {
-    //     level.remove_wall(1, z);
-    //     level.remove_wall(9, z);
-    // }
-
     for x in 1..=9 {
-        for z in 1..=9 {
-            level.remove_wall(x, z);
-        }
+        level.remove_wall(x, 1);
+        level.remove_wall(x, 9);
+    }
+
+    for z in 1..=9 {
+        level.remove_wall(1, z);
+        level.remove_wall(9, z);
     }
 
     commands.insert_resource(level);
@@ -168,20 +164,6 @@ fn spawn_world(
         },
         ..default()
     });
-
-    commands.spawn((
-        PbrBundle {
-            transform: Transform::from_xyz(50., HALF_TILE_SIZE, 50.),
-            material: my_assets.wall_material.clone(),
-            mesh: my_assets.three_way_wall_mesh.clone(),
-            ..default()
-        },
-        // Collider::cuboid(5., 5., 5.),
-        // RigidBody::Fixed,
-        AutoRotate {
-            speed: 1.,
-        }
-    ));
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
@@ -193,17 +175,5 @@ enum GameState {
 
 pub fn has_any_query_matches<F: ReadOnlyWorldQuery>(q: Query<(), F>) -> bool {
     !q.is_empty()
-}
-
-
-#[derive(Component)]
-struct AutoRotate{
-    speed: f32,
-}
-
-fn rotate_things(mut q: Query<(&mut Transform, &AutoRotate)>, time: Res<Time>) {
-    for (mut transform, rot) in q.iter_mut() {
-        transform.rotate(Quat::from_rotation_y(rot.speed * time.delta_seconds()));
-    }
 }
 
