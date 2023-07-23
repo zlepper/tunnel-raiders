@@ -17,7 +17,7 @@ impl Plugin for CameraControlPlugin {
             .add_systems(OnEnter(GameState::Playing), spawn_camera)
             .insert_resource(MouseTargetedEntity { target: None })
             .add_systems(Update,
-                (interact_with_things, select_things)
+                (interact_with_things, select_things, clear_selection)
                     .run_if(has_window_focus)
                     .after(mouse_over_things),
             )
@@ -66,6 +66,7 @@ fn spawn_camera(mut commands: Commands) {
                     MouseButton::Right,
                     ControlAction::InteractAdditional,
                 )
+                .insert(KeyCode::Escape, ControlAction::Deselect)
                 .build(),
         },
         CameraRotationTracker { angle_y: 0.0 },
@@ -83,6 +84,7 @@ pub enum ControlAction {
     SelectAdditional,
     Interact,
     InteractAdditional,
+    Deselect,
 }
 
 const CAMERA_MOVE_RATE: f32 = 20.0;
@@ -286,6 +288,18 @@ fn mouse_over_things(
             });
         } else {
             mouse_target.target = None;
+        }
+    }
+}
+
+
+fn clear_selection(
+    q: Query<&ActionState<ControlAction>>,
+    mut events: EventWriter<WantToSelect>,
+) {
+    for action_state in q.iter() {
+        if action_state.just_pressed(ControlAction::Deselect) {
+            events.send(WantToSelect::Clear);
         }
     }
 }

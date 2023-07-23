@@ -15,6 +15,7 @@ pub struct Selectable {
 pub enum WantToSelect {
     Additionally(Entity),
     Exclusively(Entity),
+    Clear,
 }
 
 pub struct SelectionPlugin;
@@ -22,13 +23,13 @@ pub struct SelectionPlugin;
 impl Plugin for SelectionPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<WantToSelect>()
-            .add_systems(Update, (select_exclusively, highlight_selected))
+            .add_systems(Update, (apply_select, highlight_selected))
             .add_systems(PostUpdate, unhighlight_deselected)
             .add_systems(Startup, add_glow_highlight_material);
     }
 }
 
-fn select_exclusively(
+fn apply_select(
     mut commands: Commands,
     query: Query<Entity, With<Selected>>,
     mut want_to_select: EventReader<WantToSelect>,
@@ -46,6 +47,11 @@ fn select_exclusively(
                 }
 
                 commands.entity(*entity).insert(Selected);
+            }
+            WantToSelect::Clear => {
+                for to_deselect in query.iter() {
+                    commands.entity(to_deselect).remove::<Selected>();
+                }
             }
         }
     }

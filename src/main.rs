@@ -12,7 +12,7 @@ mod gizmos;
 
 use crate::camera_control::CameraControlPlugin;
 use crate::debug_text::DebugTextPlugin;
-use crate::game_level::{GameLevel, HALF_TILE_SIZE};
+use crate::game_level::{GameLevel};
 use crate::prelude::*;
 use crate::selection::SelectionPlugin;
 use crate::errands::{Miner, PlayerMovable, ErrandsPlugin, WorkerPriorities};
@@ -22,7 +22,6 @@ use bevy_ecs::query::ReadOnlyWorldQuery;
 use std::f32::consts::PI;
 use std::time::Duration;
 use bevy::asset::ChangeWatcher;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy_prototype_debug_lines::DebugLinesPlugin;
 use oxidized_navigation::{NavMeshSettings, OxidizedNavigationPlugin};
 use crate::game_level_render::GameLevelRenderPlugin;
@@ -112,8 +111,6 @@ struct MyAssets {
 fn spawn_world(
     mut commands: Commands,
     my_assets: Res<MyAssets>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut images: ResMut<Assets<Image>>,
 ) {
     let mut level = GameLevel::new(10, 10);
 
