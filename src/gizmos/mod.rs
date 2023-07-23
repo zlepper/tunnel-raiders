@@ -8,9 +8,9 @@ pub struct GizmosPlugin;
 
 impl Plugin for GizmosPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(display_gizmos.run_if(should_update_gizmo_display))
-            .add_startup_system(spawn_gizmo_tracker)
-            .add_system(handle_gizmo_click);
+        app.add_systems(Update, display_gizmos.run_if(should_update_gizmo_display))
+            .add_systems(Startup, spawn_gizmo_tracker)
+            .add_systems(Update, handle_gizmo_click);
     }
 }
 
@@ -61,14 +61,12 @@ fn spawn_gizmo_tracker(mut commands: Commands) {
                 display: Display::Flex,
                 flex_direction: FlexDirection::Column,
                 flex_wrap: FlexWrap::WrapReverse,
-                overflow: Overflow::Hidden,
-                position: UiRect {
-                    right: Val::Px(20.),
-                    top: Val::Px(20.),
-                    left: Val::Auto,
-                    ..default()
-                },
-                size: Size::new(Val::Px(64.), Val::Auto),
+                overflow: Overflow::clip(),
+                right: Val::Px(20.),
+                top: Val::Px(20.),
+                left: Val::Auto,
+                height: Val::Auto,
+                width: Val::Px(64.),
                 position_type: PositionType::Absolute,
                 ..default()
             },
@@ -116,7 +114,8 @@ fn display_gizmos(
                 .spawn((
                     ButtonBundle {
                         style: Style {
-                            size: Size::new(Val::Px(64.0), Val::Px(64.0)),
+                            height: Val::Px(64.),
+                            width: Val::Px(64.),
                             display: Display::Flex,
                             align_items: AlignItems::Center,
                             justify_content: JustifyContent::Center,
@@ -135,7 +134,8 @@ fn display_gizmos(
                             ..default()
                         },
                         style: Style {
-                            size: Size::all(Val::Px(64.)),
+                            height: Val::Px(64.),
+                            width: Val::Px(64.),
                             ..default()
                         },
                         ..default()
@@ -218,7 +218,7 @@ fn handle_gizmo_click(
     mut commands: Commands
 ) {
     for (gizmo, interaction) in buttons.iter() {
-        if *interaction == Interaction::Clicked {
+        if *interaction == Interaction::Pressed {
             for entity in &gizmo.entities {
                 if let Ok(ref mut g) = &mut gizmo_entities.get_mut(*entity) {
                     if let Some(ref mut g) = &mut g.gizmos.iter_mut().find(|g| g.id == gizmo.id) {

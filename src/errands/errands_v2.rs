@@ -438,9 +438,7 @@ pub struct ErrandsV2Plugin;
 
 impl Plugin for ErrandsV2Plugin {
     fn build(&self, app: &mut App) {
-        app.add_system(check_failed_errands)
-            .add_system(assign_available_errands)
-            .add_system(start_next_errand_in_queue);
+        app.add_systems(Update, (check_failed_errands, assign_available_errands, start_next_errand_in_queue));
     }
 }
 
@@ -450,18 +448,16 @@ pub trait ErrandsV2AppExtensions {
 
 impl ErrandsV2AppExtensions for App {
     fn add_errand<E: Errand>(&mut self) -> &mut Self {
-        self.add_system(clear_finished_errands::<E>.run_if(has_workers::<E>))
-            .add_system(cancel_current_task_when_overwritten::<E>.run_if(has_workers::<E>))
-            .add_system(
+        self.add_systems(Update, clear_finished_errands::<E>.run_if(has_workers::<E>))
+            .add_systems(Update, cancel_current_task_when_overwritten::<E>.run_if(has_workers::<E>))
+            .add_systems(PostUpdate,
                 start_next_task::<E>
-                    .run_if(has_finished_work::<E>)
-                    .in_base_set(CoreSet::PostUpdate),
+                    .run_if(has_finished_work::<E>),
             )
-            .add_system(add_capability::<E>.run_if(has_added::<E::WorkerComponent>))
-            .add_system(
+            .add_systems(Update, add_capability::<E>.run_if(has_added::<E::WorkerComponent>))
+            .add_systems(PostUpdate,
                 remove_capability::<E>
-                    .run_if(has_removed::<E::WorkerComponent>)
-                    .in_base_set(CoreSet::PostUpdate),
+                    .run_if(has_removed::<E::WorkerComponent>),
             );
 
         self

@@ -11,6 +11,7 @@ pub struct Selectable {
     pub selection_ring_offset: Vec3,
 }
 
+#[derive(Event)]
 pub enum WantToSelect {
     Additionally(Entity),
     Exclusively(Entity),
@@ -21,10 +22,9 @@ pub struct SelectionPlugin;
 impl Plugin for SelectionPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<WantToSelect>()
-            .add_system(select_exclusively)
-            .add_system(highlight_selected)
-            .add_system(unhighlight_deselected.in_base_set(CoreSet::PostUpdate))
-            .add_startup_system(add_glow_highlight_material);
+            .add_systems(Update, (select_exclusively, highlight_selected))
+            .add_systems(PostUpdate, unhighlight_deselected)
+            .add_systems(Startup, add_glow_highlight_material);
     }
 }
 

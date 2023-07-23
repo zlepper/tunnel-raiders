@@ -11,13 +11,13 @@ pub struct GameLevelRenderPlugin;
 
 impl Plugin for GameLevelRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(
+        app.add_systems(Update,
             spawn_map_content
                 .run_if(resource_exists::<MyAssets>())
                 .run_if(resource_exists::<GameLevel>())
                 .run_if(in_state(GameState::Playing)),
         )
-        .add_system(
+        .add_systems(Update,
             update_game_level_when_wall_is_removed
                 .run_if(resource_exists::<GameLevel>())
                 .run_if(in_state(GameState::Playing)),

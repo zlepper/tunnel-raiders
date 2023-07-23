@@ -8,9 +8,8 @@ pub struct MineWallErrandPlugin;
 
 impl Plugin for MineWallErrandPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(execute_mine_wall)
-            .add_system(start_mining_wall)
-            .add_system(maintain_mine_gizmo.run_if(resource_exists::<MyAssets>()))
+        app.add_systems(Update, (execute_mine_wall, start_mining_wall))
+            .add_systems(Update, maintain_mine_gizmo.run_if(resource_exists::<MyAssets>()))
             .add_errand::<MineWallErrand>();
     }
 }

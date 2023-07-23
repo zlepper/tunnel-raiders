@@ -12,7 +12,7 @@ impl Plugin for NavMeshDebugPlugin {
                 time_since_last_draw: 0.,
                 draw_nav_mesh: false,
             })
-            .add_system(draw_nav_mesh_system);
+            .add_systems(Update, draw_nav_mesh_system);
     }
 }
 

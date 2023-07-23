@@ -11,19 +11,13 @@ pub struct CameraControlPlugin;
 
 impl Plugin for CameraControlPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(move_camera.run_if(has_window_focus))
-            .add_system(rotate_camera.run_if(has_window_focus))
-            .add_plugin(InputManagerPlugin::<ControlAction>::default())
-            .add_system(spawn_camera.in_schedule(OnEnter(GameState::Playing)))
+        app
+            .add_systems(Update, (move_camera, rotate_camera, mouse_over_things).run_if(has_window_focus))
+            .add_plugins(InputManagerPlugin::<ControlAction>::default())
+            .add_systems(OnEnter(GameState::Playing), spawn_camera)
             .insert_resource(MouseTargetedEntity { target: None })
-            .add_system(mouse_over_things.run_if(has_window_focus))
-            .add_system(
-                (interact_with_things)
-                    .run_if(has_window_focus)
-                    .after(mouse_over_things),
-            )
-            .add_system(
-                (select_things)
+            .add_systems(Update,
+                (interact_with_things, select_things)
                     .run_if(has_window_focus)
                     .after(mouse_over_things),
             )
@@ -79,7 +73,7 @@ fn spawn_camera(mut commands: Commands) {
     ));
 }
 
-#[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug)]
+#[derive(Actionlike, Reflect, PartialEq, Eq, Clone, Copy, Hash, Debug)]
 pub enum ControlAction {
     Move,
     Zoom,
@@ -202,6 +196,7 @@ fn select_things(
 #[derive(Component)]
 pub struct PlayerInteractable;
 
+#[derive(Event)]
 pub struct InteractedWith {
     pub entity: Entity,
     pub interaction: RayIntersection,

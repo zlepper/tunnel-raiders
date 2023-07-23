@@ -17,10 +17,8 @@ pub struct ErrandsPlugin;
 impl Plugin for ErrandsPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_system(execute_sleep_errand)
+            .add_systems(Update, execute_sleep_errand)
             .add_errand::<SleepErrand>()
-            .add_plugin(MoveToPositionErrandPlugin)
-            .add_plugin(MineWallErrandPlugin)
-            .add_plugin(ErrandsV2Plugin);
+            .add_plugins((MoveToPositionErrandPlugin, MineWallErrandPlugin, ErrandsV2Plugin));
     }
 }

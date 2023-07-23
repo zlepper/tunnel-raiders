@@ -19,16 +19,14 @@ use crate::errands::{Miner, PlayerMovable, ErrandsPlugin, WorkerPriorities};
 use bevy::window::ExitCondition;
 use bevy::DefaultPlugins;
 use bevy_ecs::query::ReadOnlyWorldQuery;
-use bevy_editor_pls::prelude::*;
-use bevy_editor_pls::EditorWindowPlacement;
 use std::f32::consts::PI;
+use std::time::Duration;
+use bevy::asset::ChangeWatcher;
 use bevy_prototype_debug_lines::DebugLinesPlugin;
 use oxidized_navigation::{NavMeshSettings, OxidizedNavigationPlugin};
 use crate::game_level_render::GameLevelRenderPlugin;
 use crate::gizmos::GizmosPlugin;
 use crate::nav_mesh_debug::NavMeshDebugPlugin;
-
-static ENABLE_EDITOR_PLUGIN: bool = false;
 
 fn main() {
     let mut app = App::new();
@@ -36,7 +34,7 @@ fn main() {
     app.add_plugins(
         DefaultPlugins
             .set(AssetPlugin {
-                watch_for_changes: true,
+                watch_for_changes: ChangeWatcher::with_delay(Duration::from_millis(200)),
                 ..Default::default()
             })
             .set(WindowPlugin {
@@ -45,23 +43,14 @@ fn main() {
             }),
     );
 
-    if ENABLE_EDITOR_PLUGIN {
-        app.add_plugin(EditorPlugin {
-            window: EditorWindowPlacement::New(Window {
-                title: "Editor".to_string(),
-                ..Default::default()
-            }),
-        });
-    }
-
-    app.add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
-        // .add_plugin(RapierDebugRenderPlugin {
+    app.add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
+        // .add_plugins(RapierDebugRenderPlugin {
         //     always_on_top: true,
         //     mode: DebugRenderMode::default() | DebugRenderMode::CONTACTS,
         //     ..default()
         // })
-        .add_plugin(DebugLinesPlugin::default())
-        .add_plugin(OxidizedNavigationPlugin {
+        .add_plugins(DebugLinesPlugin::default())
+        .add_plugins(OxidizedNavigationPlugin {
             settings: NavMeshSettings {
                 cell_width: 0.25,
                 cell_height: 0.1,
@@ -80,19 +69,13 @@ fn main() {
             }
         } )
         .add_state::<GameState>()
-        .add_plugin(CameraControlPlugin)
-        .add_plugin(SelectionPlugin)
-        .add_plugin(ErrandsPlugin)
-        .add_plugin(DebugTextPlugin)
-        .add_plugin(NavMeshDebugPlugin)
-        .add_plugin(GameLevelRenderPlugin)
-        .add_plugin(GizmosPlugin)
+        .add_plugins((CameraControlPlugin, SelectionPlugin, ErrandsPlugin, DebugTextPlugin, NavMeshDebugPlugin, GameLevelRenderPlugin, GizmosPlugin))
         .add_loading_state(
             LoadingState::new(GameState::Loading).continue_to_state(GameState::Playing),
         )
         .add_collection_to_loading_state::<_, MyAssets>(GameState::Loading)
-        .add_system(spawn_world.in_schedule(OnEnter(GameState::Playing)))
-        .add_system(rotate_things)
+        .add_systems(OnEnter(GameState::Playing), spawn_world)
+        .add_systems(Update, rotate_things)
         .run();
 }
 

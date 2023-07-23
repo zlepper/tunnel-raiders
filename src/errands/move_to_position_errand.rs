@@ -125,8 +125,8 @@ pub struct MoveToPositionErrandPlugin;
 impl Plugin for MoveToPositionErrandPlugin {
     fn build(&self, app: &mut App) {
         app.add_errand::<MoveToPosition>()
-            .add_system(execute_move_to_position.run_if(resource_exists::<GameLevel>()))
-            .add_system(move_selected_raider_to_target);
+            .add_systems(Update, execute_move_to_position.run_if(resource_exists::<GameLevel>()))
+            .add_systems(Update, move_selected_raider_to_target);
     }
 }
 

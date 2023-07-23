@@ -1,15 +1,14 @@
 use crate::prelude::*;
-use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use crate::camera_control::MouseTargetedEntity;
 
 pub struct DebugTextPlugin;
 
 impl Plugin for DebugTextPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(FrameTimeDiagnosticsPlugin)
-            .add_startup_system(setup)
-            .add_system(fps_update_system)
-            .add_system(mouse_over_target);
+        app.add_plugins(FrameTimeDiagnosticsPlugin)
+            .add_systems(Startup, setup)
+            .add_systems(Update, (fps_update_system, mouse_over_target));
     }
 }
 
@@ -62,10 +61,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .with_background_color(Color::BLACK.with_a(0.5))
             .with_style(Style {
                 position_type: PositionType::Absolute,
-                position: UiRect {
-                    top: Val::Px(20.0),
-                    ..default()
-                },
+                top: Val::Px(20.0),
                 ..default()
             }),
         MouseOverText,
@@ -76,7 +72,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 #[derive(Component)]
 struct FpsText;
 
-fn fps_update_system(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<FpsText>>) {
+fn fps_update_system(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, With<FpsText>>) {
     for mut text in &mut query {
         if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
             if let Some(value) = fps.smoothed() {
