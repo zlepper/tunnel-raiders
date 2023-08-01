@@ -9,6 +9,7 @@ mod nav_mesh_debug;
 mod grid;
 mod game_level_render;
 mod gizmos;
+mod depot_building;
 
 use crate::camera_control::CameraControlPlugin;
 use crate::debug_text::DebugTextPlugin;
@@ -69,6 +70,7 @@ fn main() {
             }
         } )
         .add_state::<GameState>()
+        .add_state::<InteractionState>()
         .add_plugins((CameraControlPlugin, SelectionPlugin, ErrandsPlugin, DebugTextPlugin, NavMeshDebugPlugin, GameLevelRenderPlugin, GizmosPlugin))
         .add_loading_state(
             LoadingState::new(GameState::Loading).continue_to_state(GameState::Playing),
@@ -79,7 +81,7 @@ fn main() {
 }
 
 #[derive(AssetCollection, Resource)]
-struct MyAssets {
+pub struct MyAssets {
     #[asset(path = "wall.gltf#Mesh4/Primitive0")]
     pub full_wall_mesh: Handle<Mesh>,
 
@@ -168,6 +170,13 @@ enum GameState {
     #[default]
     Loading,
     Playing,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
+enum InteractionState {
+    #[default]
+    Default,
+    PlacingBuilding,
 }
 
 pub fn has_any_query_matches<F: ReadOnlyWorldQuery>(q: Query<(), F>) -> bool {

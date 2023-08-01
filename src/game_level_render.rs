@@ -1,6 +1,5 @@
 use crate::errands::{Minable, Standable};
 use crate::game_level::{GameLevel, HALF_TILE_SIZE, TILE_SIZE};
-use crate::gizmos::EntityGizmos;
 use crate::grid::GridPosition;
 use crate::prelude::*;
 use crate::{GameState, MyAssets};
@@ -148,7 +147,6 @@ fn spawn_map_content(
 
                     if level.within(x, z) {
                         wall_builder.insert((
-                            EntityGizmos::default(),
                             PlayerInteractable,
                             Selectable::default(),
                             Minable {

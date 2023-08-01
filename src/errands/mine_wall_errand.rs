@@ -1,6 +1,9 @@
-use crate::errands::{Designation, ErrandsV2AppExtensions, MoveToPosition, QueuedErrand, QueuedErrandFailureBuilder, QueuedErrandImpl, WorkingOnErrand};
+use crate::errands::{
+    Designation, ErrandsV2AppExtensions, MoveToPosition, QueuedErrand, QueuedErrandFailureBuilder,
+    QueuedErrandImpl, WorkingOnErrand,
+};
 use crate::game_level::TILE_SIZE;
-use crate::gizmos::{EntityGizmos, GizmoContainer, GizmoSelectedAction};
+use crate::gizmos::{Gizmo, GizmoAppExtension, HasBaseGizmo, ButtonGizmo, DesignationGizmo};
 use crate::prelude::*;
 use crate::MyAssets;
 
@@ -9,8 +12,8 @@ pub struct MineWallErrandPlugin;
 impl Plugin for MineWallErrandPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, (execute_mine_wall, start_mining_wall))
-            .add_systems(Update, maintain_mine_gizmo.run_if(resource_exists::<MyAssets>()))
-            .add_errand::<MineWallErrand>();
+            .add_errand::<MineWallErrand>()
+            .add_gizmo::<MineWallGizmo>();
     }
 }
 
@@ -105,39 +108,37 @@ fn start_mining_wall(
     }
 }
 
-fn maintain_mine_gizmo(
-    mut q: Query<(Entity, &mut EntityGizmos, Option<&Designation>), (With<Selected>, With<Minable>)>,
-    my_assets: Res<MyAssets>,
-) {
-    for (entity, mut gizmos, designation) in q.iter_mut() {
 
-        let has_mining_designation = designation.is_some_and(|d| d.is_errand::<MineWallErrand>());
+#[derive(Resource)]
+pub struct MineWallGizmo(ButtonGizmo);
 
-        let existing_mine_gizmo = gizmos.gizmos.iter_mut().position(|g| g.id == "mine");
-
-        match (existing_mine_gizmo, has_mining_designation) {
-            (Some(existing_index), true) => {
-                gizmos.gizmos.remove(existing_index);
-            },
-            (Some(existing_index), false) => {
-                let gizmo = &mut gizmos.gizmos[existing_index];
-                match gizmo.on_selected {
-                    GizmoSelectedAction::NoAction => {
-                        gizmo.on_selected = GizmoSelectedAction::SetDesignation(Designation::new(entity, MineWallErrand::new(entity)));
-                    }
-                    GizmoSelectedAction::SetDesignation(_) => {}
-                }
-            },
-            (None, false) => {
-                gizmos.gizmos.push(GizmoContainer::new(
-                    "mine",
-                    "Mine",
-                    0,
-                    my_assets.mine_wall_icon.clone(),
-                    GizmoSelectedAction::SetDesignation(Designation::new(entity, MineWallErrand::new(entity))),
-                ));
-            },
-            _ => {}
-        }
+impl HasBaseGizmo for MineWallGizmo {
+    fn get_base_gizmo(&self) -> &ButtonGizmo {
+        &self.0
     }
+}
+
+impl DesignationGizmo for MineWallGizmo {
+    type WorldQuery = Option<&'static Designation>;
+    type ReadOnlyWorldQuery = (With<Selected>, With<Minable>);
+    type Errand = MineWallErrand;
+
+    fn create_errand(entity: Entity) -> Self::Errand {
+        MineWallErrand::new(entity)
+    }
+}
+
+impl Gizmo for MineWallGizmo {
+    type Assets = MyAssets;
+
+    fn is_visible(query: &Query<Self::WorldQuery, Self::ReadOnlyWorldQuery>) -> bool {
+        query
+            .iter()
+            .any(|d| !d.is_some_and(|d| d.is_errand::<MineWallErrand>()))
+    }
+
+    fn initialize(assets: &Self::Assets) -> Self {
+        MineWallGizmo(ButtonGizmo::new(assets.mine_wall_icon.clone(), "Mine", 0))
+    }
+
 }

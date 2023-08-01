@@ -1,241 +1,265 @@
 use crate::errands::Designation;
 use crate::prelude::*;
-use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
-use std::mem;
+use crate::{has_any_query_matches, GameState};
+use bevy_ecs::query::{ReadOnlyWorldQuery, WorldQuery};
+use std::marker::PhantomData;
 
 pub struct GizmosPlugin;
 
 impl Plugin for GizmosPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, display_gizmos.run_if(should_update_gizmo_display))
-            .add_systems(Startup, spawn_gizmo_tracker)
-            .add_systems(Update, handle_gizmo_click);
+        app.add_systems(
+            Update,
+            add_buttons_to_gizmos
+                .run_if(has_any_query_matches::<(With<RenderedGizmo>, Without<Button>)>),
+        )
+        .add_systems(Update, new_display_gizmos);
     }
 }
 
-#[derive(Debug, Eq, Clone)]
-pub struct GizmoInfo {
+const GIZMO_GAP: f32 = 5.;
+const GIZMO_SIZE: f32 = 64.;
+
+fn add_buttons_to_gizmos(
+    gizmos: Query<(Entity, &RenderedGizmo), Without<Button>>,
+    mut commands: Commands,
+) {
+    for (entity, gizmo) in gizmos.iter() {
+        commands
+            .entity(entity)
+            .insert(ButtonBundle {
+                style: Style {
+                    top: Val::Px(GIZMO_GAP),
+                    right: Val::Px(GIZMO_GAP),
+                    height: Val::Px(GIZMO_SIZE),
+                    width: Val::Px(GIZMO_SIZE),
+                    position_type: PositionType::Absolute,
+                    ..default()
+                },
+                background_color: Color::BLACK.into(),
+                ..default()
+            })
+            .with_children(|p| {
+                p.spawn(ImageBundle {
+                    image: UiImage {
+                        texture: gizmo.icon.clone(),
+                        ..default()
+                    },
+                    style: Style {
+                        height: Val::Px(64.),
+                        width: Val::Px(64.),
+                        position_type: PositionType::Absolute,
+                        ..default()
+                    },
+                    ..default()
+                });
+                p.spawn(TextBundle::from_section(
+                    &gizmo.name,
+                    TextStyle {
+                        font_size: 16.,
+                        color: Color::WHITE,
+                        ..default()
+                    },
+                ).with_style(Style {
+                    position_type: PositionType::Absolute,
+                    bottom: Val::Px(0.),
+                    margin: UiRect  {
+                        left: Val::Auto,
+                        right: Val::Auto,
+                        ..default()
+                    },
+                    ..default()
+                }));
+            });
+    }
+}
+
+fn new_display_gizmos(mut q: Query<(&RenderedGizmo, &mut Style)>) {
+    let buttons = q
+        .iter_mut()
+        .sorted_by_key(|(g, _)| g.order)
+        .map(|(_, s)| s)
+        .enumerate();
+
+    for (order, mut style) in buttons {
+        let order = order as f32;
+        let expected = Val::Px(order * GIZMO_SIZE + (order + 1.) * GIZMO_GAP);
+
+        if style.top != expected {
+            style.top = expected;
+        }
+    }
+}
+
+pub trait BaseGizmo {
+    fn get_icon(&self) -> Handle<Image>;
+    fn get_name(&self) -> String;
+    fn get_order(&self) -> i32;
+}
+
+pub struct ButtonGizmo {
     pub icon: Handle<Image>,
     pub name: String,
     pub order: i32,
-    pub id: String,
 }
 
-impl PartialEq for GizmoInfo {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
+impl ButtonGizmo {
+    pub fn new(icon: Handle<Image>, name: &str, order: i32) -> Self {
+        Self {
+            icon,
+            name: name.to_string(),
+            order,
+        }
     }
 }
 
-impl Hash for GizmoInfo {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
+pub trait HasBaseGizmo {
+    fn get_base_gizmo(&self) -> &ButtonGizmo;
+}
+
+impl<G> BaseGizmo for G
+where
+    G: HasBaseGizmo,
+{
+    fn get_icon(&self) -> Handle<Image> {
+        self.get_base_gizmo().get_icon()
+    }
+
+    fn get_name(&self) -> String {
+        self.get_base_gizmo().get_name()
+    }
+
+    fn get_order(&self) -> i32 {
+        self.get_base_gizmo().get_order()
+    }
+}
+
+impl BaseGizmo for ButtonGizmo {
+    fn get_icon(&self) -> Handle<Image> {
+        self.icon.clone()
+    }
+
+    fn get_name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn get_order(&self) -> i32 {
+        self.order
+    }
+}
+
+pub trait ApplicableGizmo {
+    type WorldQuery: WorldQuery + 'static;
+    type ReadOnlyWorldQuery: ReadOnlyWorldQuery + 'static;
+
+    fn apply(
+        commands: &mut Commands,
+        query: &Query<(Entity, Self::WorldQuery), Self::ReadOnlyWorldQuery>,
+    );
+}
+
+pub trait Gizmo: ApplicableGizmo + BaseGizmo + Resource + 'static {
+    type Assets: Resource + 'static;
+
+    fn is_visible(query: &Query<Self::WorldQuery, Self::ReadOnlyWorldQuery>) -> bool;
+    fn initialize(assets: &Self::Assets) -> Self;
+}
+
+pub trait DesignationGizmo {
+    type WorldQuery: WorldQuery + 'static;
+    type ReadOnlyWorldQuery: ReadOnlyWorldQuery + 'static;
+    type Errand: Errand + 'static;
+
+    fn create_errand(entity: Entity) -> Self::Errand;
+}
+
+impl<G: DesignationGizmo> ApplicableGizmo for G {
+    type WorldQuery = G::WorldQuery;
+    type ReadOnlyWorldQuery = G::ReadOnlyWorldQuery;
+
+    fn apply(
+        commands: &mut Commands,
+        query: &Query<(Entity, Self::WorldQuery), Self::ReadOnlyWorldQuery>,
+    ) {
+        for (entity, _) in query.iter() {
+            let errand = G::create_errand(entity);
+            commands
+                .entity(entity)
+                .insert(Designation::new(entity, errand));
+        }
     }
 }
 
 #[derive(Component)]
-struct GizmoButton {
-    id: String,
-    entities: Vec<Entity>,
-}
-
-#[derive(Component, Default)]
-struct GizmoTracker {
-    gizmo_buttons: HashMap<String, Entity>,
-}
-
-fn should_update_gizmo_display(
-    new_selection: Query<(), (Added<Selected>, With<EntityGizmos>)>,
-    removed_selection: RemovedComponents<Selected>,
-    gizmos_changed: Query<(), (With<Selected>, Changed<EntityGizmos>)>,
-) -> bool {
-    !new_selection.is_empty() || !removed_selection.is_empty() || !gizmos_changed.is_empty()
-}
-
-fn spawn_gizmo_tracker(mut commands: Commands) {
-    commands.spawn((
-        GizmoTracker::default(),
-        NodeBundle {
-            style: Style {
-                display: Display::Flex,
-                flex_direction: FlexDirection::Column,
-                flex_wrap: FlexWrap::WrapReverse,
-                overflow: Overflow::clip(),
-                right: Val::Px(20.),
-                top: Val::Px(20.),
-                left: Val::Auto,
-                height: Val::Auto,
-                width: Val::Px(64.),
-                position_type: PositionType::Absolute,
-                ..default()
-            },
-            ..default()
-        },
-    ));
-}
-
-fn display_gizmos(
-    q: Query<(&EntityGizmos, Entity), With<Selected>>,
-    mut buttons: Query<(&mut GizmoButton, Entity)>,
-    mut commands: Commands,
-    mut gizmo_nodes: Query<(&mut GizmoTracker, Entity)>,
-) {
-    let Ok((mut gizmo_button_tracker, tracker_entity)) = gizmo_nodes.get_single_mut() else {
-        error!("Failed to get gizmo tracker node");
-        return;
-    };
-
-    let gizmos_to_render = q
-        .iter()
-        .flat_map(|(gizmos, entity)| gizmos.gizmos.iter().map(move |g| (g, entity)))
-        .into_group_map();
-
-    let render_order = gizmos_to_render.iter().sorted_by_key(|(g, _)| g.order);
-
-    for (gizmo, entities) in render_order {
-        let found = if let Some(existing) = gizmo_button_tracker.gizmo_buttons.get(&gizmo.id) {
-            if let Ok((ref mut button, _)) = &mut buttons.get_mut(*existing) {
-                button.entities = entities.clone();
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-
-        if !found {
-            let button = GizmoButton {
-                id: gizmo.id.to_string(),
-                entities: entities.clone(),
-            };
-            let entity = commands
-                .spawn((
-                    ButtonBundle {
-                        style: Style {
-                            height: Val::Px(64.),
-                            width: Val::Px(64.),
-                            display: Display::Flex,
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            ..default()
-                        },
-                        background_color: Color::BLACK.into(),
-                        ..Default::default()
-                    },
-                    button,
-                ))
-                .set_parent(tracker_entity)
-                .with_children(|parent| {
-                    parent.spawn(ImageBundle {
-                        image: UiImage {
-                            texture: gizmo.icon.clone(),
-                            ..default()
-                        },
-                        style: Style {
-                            height: Val::Px(64.),
-                            width: Val::Px(64.),
-                            ..default()
-                        },
-                        ..default()
-                    });
-                })
-                .id();
-
-            gizmo_button_tracker
-                .gizmo_buttons
-                .insert(gizmo.id.clone(), entity);
-        }
-    }
-
-    let rendered_gizmo_ids: HashSet<_> = gizmos_to_render.keys().map(|g| &g.id).collect();
-
-    for (gizmo, entity) in buttons.iter() {
-        if !rendered_gizmo_ids.contains(&gizmo.id) {
-            commands.entity(entity).despawn_recursive();
-            gizmo_button_tracker.gizmo_buttons.remove(&gizmo.id);
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-pub enum GizmoSelectedAction {
-    #[default]
-    NoAction,
-    SetDesignation(Designation),
-}
-
-#[derive(Debug)]
-pub struct GizmoContainer {
+struct RenderedGizmo {
     pub icon: Handle<Image>,
     pub name: String,
     pub order: i32,
-    pub id: String,
-    pub on_selected: GizmoSelectedAction,
 }
 
-impl PartialEq for GizmoContainer {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
+#[derive(Component)]
+struct GizmoTag<T>(PhantomData<fn() -> T>);
+
+impl<T> Default for GizmoTag<T> {
+    fn default() -> Self {
+        GizmoTag(PhantomData)
     }
 }
 
-impl Eq for GizmoContainer {}
-
-impl Hash for GizmoContainer {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
-}
-
-impl GizmoContainer {
-    pub fn new(
-        id: &str,
-        name: &str,
-        order: i32,
-        icon: Handle<Image>,
-        on_selected: GizmoSelectedAction,
-    ) -> Self {
-        Self {
-            on_selected,
-            order,
-            id: id.to_string(),
-            name: name.to_string(),
-            icon,
-        }
-    }
-}
-
-#[derive(Component, Default)]
-pub struct EntityGizmos {
-    pub gizmos: Vec<GizmoContainer>,
-}
-
-fn handle_gizmo_click(
-    buttons: Query<(&GizmoButton, &Interaction), Changed<Interaction>>,
-    mut gizmo_entities: Query<&mut EntityGizmos, With<Selected>>,
-    mut commands: Commands
+fn maintain_gizmo<G: Gizmo>(
+    q: Query<G::WorldQuery, G::ReadOnlyWorldQuery>,
+    mut commands: Commands,
+    rendered_gizmo: Query<Entity, With<GizmoTag<G>>>,
+    gizmo_info: Res<G>,
 ) {
-    for (gizmo, interaction) in buttons.iter() {
-        if *interaction == Interaction::Pressed {
-            for entity in &gizmo.entities {
-                if let Ok(ref mut g) = &mut gizmo_entities.get_mut(*entity) {
-                    if let Some(ref mut g) = &mut g.gizmos.iter_mut().find(|g| g.id == gizmo.id) {
-                        let action = mem::take(&mut g.on_selected);
+    let should_be_visible = G::is_visible(&q);
 
-                        match action {
-                            GizmoSelectedAction::NoAction => {
-                                info!("Gizmo has no action");
-                            }
-                            GizmoSelectedAction::SetDesignation(designation) => {
-                                info!("Adding designation: {:?}", designation);
-                                commands.entity(*entity).insert(designation);
-                            }
-                        }
-                    }
-                }
+    let is_visible = !rendered_gizmo.is_empty();
+
+    match (should_be_visible, is_visible) {
+        (true, false) => {
+            commands.spawn((
+                GizmoTag::<G>::default(),
+                RenderedGizmo {
+                    icon: gizmo_info.get_icon(),
+                    name: gizmo_info.get_name(),
+                    order: gizmo_info.get_order(),
+                },
+            ));
+        }
+        (false, true) => {
+            for entity in rendered_gizmo.iter() {
+                commands.entity(entity).despawn_recursive();
             }
         }
+        _ => {}
+    }
+}
+
+fn initialize_gizmo_resource<G: Gizmo>(assets: Res<G::Assets>, mut commands: Commands) {
+    commands.insert_resource(G::initialize(&assets));
+}
+
+fn activate_gizmo_on_click<G: Gizmo>(
+    activated: Query<&Interaction, (With<GizmoTag<G>>, Changed<Interaction>)>,
+    mut commands: Commands,
+    gizmo_query: Query<(Entity, G::WorldQuery), G::ReadOnlyWorldQuery>,
+) {
+    for interaction in activated.iter() {
+        if *interaction == Interaction::Pressed {
+            G::apply(&mut commands, &gizmo_query);
+        }
+    }
+}
+
+pub trait GizmoAppExtension {
+    fn add_gizmo<G: Gizmo + 'static>(&mut self) -> &mut Self;
+}
+
+impl GizmoAppExtension for App {
+    fn add_gizmo<G: Gizmo + 'static>(&mut self) -> &mut Self {
+        self.add_systems(Update, maintain_gizmo::<G>.run_if(resource_exists::<G>()))
+            .add_systems(OnEnter(GameState::Playing), initialize_gizmo_resource::<G>)
+            .add_systems(Update, activate_gizmo_on_click::<G>)
     }
 }
