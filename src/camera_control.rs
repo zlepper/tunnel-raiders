@@ -6,6 +6,7 @@ use bevy::window::PrimaryWindow;
 use leafwing_input_manager::action_state::ActionState;
 use leafwing_input_manager::user_input::InputKind;
 use leafwing_input_manager::user_input::Modifier;
+use crate::buildings::is_placing_building;
 
 pub struct CameraControlPlugin;
 
@@ -19,6 +20,7 @@ impl Plugin for CameraControlPlugin {
             .add_systems(Update,
                 (interact_with_things, select_things, clear_selection)
                     .run_if(has_window_focus)
+                    .run_if(not(is_placing_building))
                     .after(mouse_over_things),
             )
             .add_event::<InteractedWith>();

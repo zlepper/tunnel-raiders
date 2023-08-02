@@ -3,7 +3,7 @@ use crate::errands::{
     QueuedErrandImpl, WorkingOnErrand,
 };
 use crate::game_level::TILE_SIZE;
-use crate::gizmos::{Gizmo, GizmoAppExtension, HasBaseGizmo, ButtonGizmo, DesignationGizmo};
+use crate::gizmos::GizmoVisibility;
 use crate::prelude::*;
 use crate::MyAssets;
 
@@ -13,7 +13,7 @@ impl Plugin for MineWallErrandPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, (execute_mine_wall, start_mining_wall))
             .add_errand::<MineWallErrand>()
-            .add_gizmo::<MineWallGizmo>();
+            .add_designation_gizmo::<MineWallGizmo>();
     }
 }
 
@@ -108,7 +108,6 @@ fn start_mining_wall(
     }
 }
 
-
 #[derive(Resource)]
 pub struct MineWallGizmo(ButtonGizmo);
 
@@ -118,27 +117,29 @@ impl HasBaseGizmo for MineWallGizmo {
     }
 }
 
-impl DesignationGizmo for MineWallGizmo {
+impl GizmoVisibility for MineWallGizmo {
     type WorldQuery = Option<&'static Designation>;
     type ReadOnlyWorldQuery = (With<Selected>, With<Minable>);
-    type Errand = MineWallErrand;
-
-    fn create_errand(entity: Entity) -> Self::Errand {
-        MineWallErrand::new(entity)
-    }
-}
-
-impl Gizmo for MineWallGizmo {
-    type Assets = MyAssets;
 
     fn is_visible(query: &Query<Self::WorldQuery, Self::ReadOnlyWorldQuery>) -> bool {
         query
             .iter()
             .any(|d| !d.is_some_and(|d| d.is_errand::<MineWallErrand>()))
     }
+}
+
+impl Gizmo for MineWallGizmo {
+    type Assets = MyAssets;
 
     fn initialize(assets: &Self::Assets) -> Self {
         MineWallGizmo(ButtonGizmo::new(assets.mine_wall_icon.clone(), "Mine", 0))
     }
+}
 
+impl DesignationGizmo for MineWallGizmo {
+    type Errand = MineWallErrand;
+
+    fn create_errand(entity: Entity) -> Self::Errand {
+        MineWallErrand::new(entity)
+    }
 }

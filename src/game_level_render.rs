@@ -5,6 +5,7 @@ use crate::prelude::*;
 use crate::{GameState, MyAssets};
 use oxidized_navigation::NavMeshAffector;
 use std::collections::HashMap;
+use crate::buildings::OpenForBuilding;
 
 pub struct GameLevelRenderPlugin;
 
@@ -85,6 +86,7 @@ struct WorldTileTracker {
 
 struct WorldTile {
     wall_entity: Option<Entity>,
+    floor_entity: Entity,
 }
 
 #[derive(Component)]
@@ -184,10 +186,15 @@ fn spawn_map_content(
                     ));
                 }
 
+                if level.is_open(x, z) {
+                    floor.insert(OpenForBuilding);
+                }
+
                 world_tile_tracker.tiles.insert(
                     world_tile_position,
                     WorldTile {
                         wall_entity,
+                        floor_entity: floor.id(),
                     },
                 );
             }
@@ -239,10 +246,16 @@ fn update_game_level_when_wall_is_removed(
     mut level: ResMut<GameLevel>,
     mut tracker: ResMut<WorldTileTracker>,
     mut removed_walls: RemovedComponents<Wall>,
+    mut commands: Commands,
 ) {
     for entity in removed_walls.iter() {
         if let Some(pos) = tracker.wall_entities.remove(&entity) {
             level.remove_wall(pos.x, pos.z);
+            if let Some(tile) = tracker.tiles.get(&pos) {
+                if let Some(mut commands) = commands.get_entity(tile.floor_entity) {
+                    commands.insert(OpenForBuilding);
+                }
+            }
         }
     }
 }
