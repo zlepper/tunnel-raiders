@@ -6,6 +6,7 @@ use crate::{GameState, MyAssets};
 use oxidized_navigation::NavMeshAffector;
 use std::collections::HashMap;
 use crate::buildings::OpenForBuilding;
+use crate::health::Health;
 
 pub struct GameLevelRenderPlugin;
 
@@ -151,10 +152,8 @@ fn spawn_map_content(
                         wall_builder.insert((
                             PlayerInteractable,
                             Selectable::default(),
-                            Minable {
-                                max_health: 5.,
-                                remaining_health: 5.,
-                            },
+                            Minable,
+                            Health::new(5.),
                         ));
                     }
 

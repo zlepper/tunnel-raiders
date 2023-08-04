@@ -448,7 +448,7 @@ pub trait ErrandsV2AppExtensions {
 
 impl ErrandsV2AppExtensions for App {
     fn add_errand<E: Errand>(&mut self) -> &mut Self {
-        self.add_systems(Update, clear_finished_errands::<E>.run_if(has_workers::<E>))
+        self.add_systems(Update, clear_finished_errands::<E>.run_if(has_workers::<E>).before(check_failed_errands))
             .add_systems(Update, cancel_current_task_when_overwritten::<E>.run_if(has_workers::<E>))
             .add_systems(PostUpdate,
                 start_next_task::<E>

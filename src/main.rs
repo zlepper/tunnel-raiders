@@ -10,6 +10,7 @@ mod nav_mesh_debug;
 mod prelude;
 mod ray_hit_helpers;
 mod selection;
+mod health;
 
 use crate::buildings::BuildingsPlugin;
 use crate::camera_control::CameraControlPlugin;
@@ -30,6 +31,7 @@ use bevy_prototype_debug_lines::DebugLinesPlugin;
 use oxidized_navigation::{NavMeshSettings, OxidizedNavigationPlugin};
 use std::f32::consts::PI;
 use std::time::Duration;
+use crate::health::HealthPlugin;
 
 fn main() {
     let mut app = App::new();
@@ -85,6 +87,7 @@ fn main() {
             GameLevelRenderPlugin,
             GizmosPlugin,
             BuildingsPlugin,
+            HealthPlugin,
         ))
         .load_assets::<MyAssets>()
         .add_systems(OnEnter(GameState::Playing), spawn_world)

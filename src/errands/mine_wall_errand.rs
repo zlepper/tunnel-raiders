@@ -4,6 +4,7 @@ use crate::errands::{
 };
 use crate::game_level::TILE_SIZE;
 use crate::gizmos::GizmoVisibility;
+use crate::health::Health;
 use crate::prelude::*;
 use crate::MyAssets;
 
@@ -41,10 +42,7 @@ impl Errand for MineWallErrand {
 }
 
 #[derive(Component)]
-pub struct Minable {
-    pub remaining_health: f32,
-    pub max_health: f32,
-}
+pub struct Minable;
 
 fn execute_mine_wall(
     mut miners: Query<(
@@ -52,8 +50,7 @@ fn execute_mine_wall(
         &GlobalTransform,
         &mut ErrandQueue,
     )>,
-    mut walls: Query<(&mut Minable, &GlobalTransform)>,
-    mut commands: Commands,
+    mut walls: Query<(&mut Health, &GlobalTransform), With<Minable>>,
     time: Res<Time>,
 ) {
     for (mut errand, miner_position, mut queue) in miners.iter_mut() {
@@ -75,10 +72,9 @@ fn execute_mine_wall(
                 continue;
             }
 
-            wall.remaining_health -= time.delta_seconds();
-            info!("Remaining wall health: {}", wall.remaining_health);
-            if wall.remaining_health <= 0.0 {
-                commands.entity(errand.target).despawn_recursive();
+            wall.current -= time.delta_seconds();
+            info!("Remaining wall health: {}", wall.current);
+            if wall.current <= 0.0 {
                 errand.done();
                 info!("Completed mine wall errand");
             }
