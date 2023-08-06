@@ -122,6 +122,9 @@ pub struct MyAssets {
 
     #[asset(path = "drill-icon.png")]
     pub mine_wall_icon: Handle<Image>,
+
+    #[asset(path = "resources/ore.gltf#Scene0")]
+    pub ore_model: Handle<Scene>,
 }
 
 fn spawn_world(mut commands: Commands, my_assets: Res<MyAssets>) {

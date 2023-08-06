@@ -2,7 +2,6 @@ use crate::buildings::building_menu::BuildingListGizmo;
 use crate::buildings::OpenForBuilding;
 use crate::camera_control::MouseTargetedEntity;
 use crate::prelude::*;
-use bevy::scene::SceneInstance;
 use std::ops::Deref;
 
 pub struct DepotBuildingPlugin;

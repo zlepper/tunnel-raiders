@@ -6,7 +6,7 @@ use crate::{GameState, MyAssets};
 use oxidized_navigation::NavMeshAffector;
 use std::collections::HashMap;
 use crate::buildings::OpenForBuilding;
-use crate::health::Health;
+use crate::health::{DeathAction, Health, OnDeathAction};
 
 pub struct GameLevelRenderPlugin;
 
@@ -110,9 +110,12 @@ fn spawn_map_content(
             if let Some(ref mut existing) = world_tile_entry {
                 if let Some(wall_entity) = existing.wall_entity {
                     if level.is_open(x, z) {
-                        if let Some(wall_entity) = commands.get_entity(wall_entity) {
+                        if let Some(mut wall_entity) = commands.get_entity(wall_entity) {
                             info!("Removing wall entity");
-                            wall_entity.despawn_recursive();
+                            wall_entity.insert(Health {
+                                current: 0.,
+                                max: 5.
+                            });
                         }
                         existing.wall_entity = None;
                         updated_positions.push(world_tile_position);
@@ -154,6 +157,9 @@ fn spawn_map_content(
                             Selectable::default(),
                             Minable,
                             Health::new(5.),
+                            OnDeathAction::new(SpawnOre {
+                                model: my_assets.ore_model.clone(),
+                            }),
                         ));
                     }
 
@@ -366,3 +372,27 @@ fn get_wall_mesh(
         _ => None,
     }
 }
+
+pub struct SpawnOre {
+    model: Handle<Scene>,
+}
+
+impl DeathAction for SpawnOre {
+    fn on_death(&self, _entity: Entity, commands: &mut Commands, transform: &GlobalTransform) {
+        info!("Spawning ore on wall death");
+
+        commands.spawn((
+            SceneBundle {
+                transform: Transform::from_translation(transform.translation()),
+                scene: self.model.clone(),
+                ..default()
+            },
+            RigidBody::Dynamic,
+            Collider::ball(0.5),
+        ));
+
+    }
+}
+
+
+
