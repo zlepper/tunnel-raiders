@@ -10,3 +10,4 @@ pub use bevy_hanabi::prelude::*;
 pub use bevy_rapier3d::prelude::*;
 pub use itertools::Itertools;
 pub use leafwing_input_manager::prelude::*;
+pub use crate::buildings::{Building, BuildingAppExtensions};
